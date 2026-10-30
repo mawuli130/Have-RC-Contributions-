@@ -246,6 +246,59 @@ export async function liveSignOut(): Promise<void> {
   }
 }
 
+export interface LiveProfileUpdate {
+  fullName: string;
+  phone: string | null;
+  /** Small data URL (already downscaled) or null to remove the photo. */
+  avatarDataUrl: string | null;
+}
+
+/**
+ * Saves name/phone/photo to the Supabase profile — the source of truth.
+ * Without this, profile edits (especially the photo) only lived in the
+ * phone's local mirror and were wiped by the next session restore/sync.
+ */
+export async function liveUpdateMyProfile(input: LiveProfileUpdate): Promise<AuthenticatedUser> {
+  const sb = client();
+  const fullName = input.fullName.trim().replace(/\s+/g, ' ');
+  if (fullName.length < 3) throw new ServiceError('Please enter your full name (at least 3 characters).');
+
+  const { data: sessionData } = await sb.auth.getSession();
+  const authUser = sessionData.session?.user;
+  if (!authUser) throw new ServiceError('You are not signed in. Please log in again.');
+
+  const { data: updatedRows, error } = await sb
+    .from('profiles')
+    .update({
+      full_name: fullName,
+      phone: input.phone?.trim() || null,
+      avatar_url: input.avatarDataUrl,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', authUser.id)
+    .select('id');
+  if (error) throw new ServiceError(error.message);
+  if (!updatedRows || updatedRows.length === 0) {
+    throw new ServiceError(
+      'Your profile was not found in the database, so the photo could not be saved. Please ask the administrator to confirm the account setup (migration 003), then try again.'
+    );
+  }
+
+  const updated = await fetchAuthenticatedUser(authUser.id, authUser.email ?? '', fullName);
+  cacheSessionUser(updated);
+  syncLocalMirrorUser(updated);
+  return updated;
+}
+
+export async function liveChangeMyPassword(newPassword: string): Promise<void> {
+  if (newPassword.length < 8) {
+    throw new ServiceError('Your new password must be at least 8 characters long.');
+  }
+  const sb = client();
+  const { error } = await sb.auth.updateUser({ password: newPassword });
+  if (error) throw friendlyAuthError(error.message);
+}
+
 export async function liveRequestPasswordReset(email: string): Promise<string> {
   const sb = client();
   const redirectTo = typeof window !== 'undefined' ? window.location.origin : undefined;

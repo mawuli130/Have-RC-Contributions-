@@ -3,6 +3,9 @@ import { Check, KeyRound, Loader2, Save } from 'lucide-react';
 import { Alert, Avatar, ScreenHeader, SectionHeader, type PickedFile } from '../components/ui';
 import { useApp } from '../context/AppContext';
 import { ServiceError, changeMyPassword, getSessionUser, updateMyProfile } from '../services/databaseService';
+import { isLiveSupabaseConfigured } from '../services/supabaseClient';
+import { liveChangeMyPassword, liveUpdateMyProfile } from '../services/liveAuth';
+import { downscaleAvatarImage } from '../utils/image';
 
 export function ProfileEditScreen() {
   const { goBack, session, setSession, toast } = useApp();
@@ -17,26 +20,38 @@ export function ProfileEditScreen() {
   const [pwError, setPwError] = useState<string | null>(null);
   const [pwBusy, setPwBusy] = useState(false);
 
-  const onPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const onPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 1.5 * 1024 * 1024) {
-      setError('Please choose a photo smaller than 1.5 MB.');
+    if (file.size > 8 * 1024 * 1024) {
+      setError('Please choose a photo smaller than 8 MB.');
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => setAvatar(String(reader.result ?? ''));
-    reader.readAsDataURL(file);
+    // Shrink before storing: full-size photos overflow browser storage
+    // and used to disappear on refresh.
+    const dataUrl = await downscaleAvatarImage(file);
+    if (dataUrl) setAvatar(dataUrl);
   };
 
-  const save = (e: React.FormEvent) => {
+  const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      updateMyProfile({ fullName, phone, avatarDataUrl: avatar });
-      const latest = getSessionUser();
-      if (latest) setSession(latest);
+      if (isLiveSupabaseConfigured) {
+        // Live mode: the Supabase profile is the source of truth — saving
+        // only locally is exactly what made photos vanish on refresh.
+        const updated = await liveUpdateMyProfile({
+          fullName,
+          phone: phone || null,
+          avatarDataUrl: avatar,
+        });
+        setSession(updated);
+      } else {
+        updateMyProfile({ fullName, phone, avatarDataUrl: avatar });
+        const latest = getSessionUser();
+        if (latest) setSession(latest);
+      }
       toast.success('Profile updated.');
       goBack();
     } catch (err) {
@@ -46,12 +61,16 @@ export function ProfileEditScreen() {
     }
   };
 
-  const savePassword = (e: React.FormEvent) => {
+  const savePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPwError(null);
     setPwBusy(true);
     try {
-      changeMyPassword(currentPassword, newPassword);
+      if (isLiveSupabaseConfigured) {
+        await liveChangeMyPassword(newPassword);
+      } else {
+        changeMyPassword(currentPassword, newPassword);
+      }
       setCurrentPassword('');
       setNewPassword('');
       toast.success('Password changed.');
