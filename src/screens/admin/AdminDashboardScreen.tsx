@@ -60,7 +60,7 @@ export function AdminDashboardScreen() {
 
       <div className="px-4 pt-4">
         <div className="grid grid-cols-2 gap-2.5">
-          <StatCard label="Approved Members" value={`${s?.approved_members_count ?? 0}`} hint={`${pendingMembers.length} awaiting approval`} icon={<UserCheck size={16} />} tone="navy" onClick={() => navigate('admin-members')} />
+          <StatCard label="Registered Members" value={`${s?.registered_members_count ?? 0}`} hint={`${s?.approved_members_count ?? 0} approved · ${pendingMembers.length} awaiting approval`} icon={<UserCheck size={16} />} tone="navy" onClick={() => navigate('admin-members')} />
           <StatCard label="Total Contributions" value={formatGHS(s?.total_verified_contributions_ghs ?? 0)} hint="From verified payments" icon={<HandCoins size={16} />} tone="green" onClick={() => navigate('admin-reports')} />
           <StatCard label="Total Expenses" value={formatGHS(s?.total_posted_expenses_ghs ?? 0)} hint="All posted expenses" icon={<TrendingDown size={16} />} tone="red" onClick={() => navigate('admin-expense-history')} />
           <StatCard label="Current Balance" value={formatGHS(s?.current_recorded_balance_ghs ?? 0)} hint="Income − expenses" icon={<Wallet size={16} />} tone="gold" onClick={() => navigate('admin-reports')} />

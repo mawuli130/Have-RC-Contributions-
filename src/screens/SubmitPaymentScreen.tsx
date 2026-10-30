@@ -18,11 +18,12 @@ import {
 } from '../services/databaseService';
 import { formatDateShort, formatGHS } from '../utils/formatters';
 import { todayISO } from '../services/localStore';
+import { isLiveSupabaseConfigured, supabase } from '../services/supabaseClient';
 
 const METHODS = ['Mobile Money', 'Bank transfer', 'Cash to treasurer', 'Other'];
 
 export function SubmitPaymentScreen() {
-  const { goBack, toast, refresh, navigate } = useApp();
+  const { goBack, toast, refresh, navigate, session } = useApp();
   const mine = useServiceData(() => getMyComputation());
   const obligations = useServiceData(() => getMyObligations());
   const rule = useServiceData(() => getContributionRule());
@@ -64,6 +65,20 @@ export function SubmitPaymentScreen() {
       setSubmitted({ amount: payment.amount_ghs });
       refresh();
       toast.success('Payment submitted for verification.');
+      // Live mode: also ring the admins' phones (Web Push via Edge
+      // Function) so they can verify quickly. Best effort — the in-app
+      // notification + sync already happened above.
+      if (isLiveSupabaseConfigured && supabase) {
+        void supabase.functions
+          .invoke('notify-payment', {
+            body: {
+              title: 'New payment to review',
+              body: `${session?.profile.full_name ?? 'A member'} submitted ${formatGHS(payment.amount_ghs)} — tap to review.`,
+              url: '/',
+            },
+          })
+          .catch(() => undefined);
+      }
     } catch (err) {
       setError(err instanceof ServiceError ? err.message : 'Your payment could not be submitted.');
     } finally {

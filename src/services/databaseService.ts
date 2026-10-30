@@ -193,6 +193,18 @@ export function signUp(input: SignUpInput): AuthenticatedUser {
     s.users.push(user);
     s.session_user_id = user.id;
     audit(s, user, 'REGISTER', 'profiles', user.id, `${fullName} registered and is awaiting approval`);
+    // Tell admins/treasurers immediately so nobody waits unnoticed.
+    s.users
+      .filter((u) => isAdminRole(u.role) && u.membership_status === 'approved')
+      .forEach((adminUser) => {
+        notify(
+          s,
+          adminUser.id,
+          'New Member Registered',
+          `${fullName} just registered and is awaiting approval.`,
+          'system'
+        );
+      });
   });
 
   return { profile: toProfile(user), role: 'member' };
@@ -873,6 +885,13 @@ function syncScheduleAndNotifications(state: LocalDbState): void {
   const rule = state.contribution_rules.find((r) => r.is_active && r.amount_ghs !== null && r.start_date);
   if (!rule) return;
   generateObligations(state, rule);
+  // Backfill: a member approved AFTER the schedule started — or approved on
+  // another device — must still receive an obligation for every week, so
+  // their outstanding shows exactly like everyone else's. Deduplicated by
+  // (member, period) inside generateObligationsForMember.
+  state.users
+    .filter((u) => u.membership_status === 'approved')
+    .forEach((user) => generateObligationsForMember(state, user, rule));
   const today = todayISO();
   void today;
   state.users

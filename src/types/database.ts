@@ -261,6 +261,8 @@ export interface GroupFinancialSummary {
   other_recorded_outflows_ghs: number;
   current_recorded_balance_ghs: number;
   approved_members_count: number;
+  /** Every account ever registered (approved + pending + declined). */
+  registered_members_count: number;
   pending_members_count: number;
   members_yet_to_pay_count: number;
   members_fully_paid_count: number;

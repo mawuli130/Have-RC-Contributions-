@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthenticatedUser } from '../types/database';
-import { getSessionUser, signOut } from '../services/databaseService';
+import { getNotifications, getSessionUser, signOut } from '../services/databaseService';
+import { startLiveSync } from '../services/liveSync';
+import { surfaceNewNotifications } from '../pwa/browserNotifications';
 import { isLiveSupabaseConfigured, supabase } from '../services/supabaseClient';
 import { liveGetSessionUser, liveSignOut } from '../services/liveAuth';
 import { useToasts, type Toast } from '../hooks/useApp';
@@ -175,6 +177,28 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     signOut();
     setSession(null);
   }, [setSession]);
+
+  // Live mode: keep this device synced with the shared group state while
+  // signed in and approved (writes push; pulls on focus/online/interval).
+  const liveUserId = session?.profile.id;
+  const liveStatus = session?.profile.membership_status;
+  useEffect(() => {
+    if (!isLiveSupabaseConfigured || !session || liveStatus !== 'approved') return;
+    const stop = startLiveSync(session, () => refresh());
+    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [liveUserId, liveStatus, refresh]);
+
+  // New in-app notifications also pop up as phone/browser alerts when the
+  // app is in the background (permission permitting).
+  useEffect(() => {
+    if (!session) return;
+    try {
+      surfaceNewNotifications(getNotifications());
+    } catch {
+      // No local session yet — nothing to surface.
+    }
+  }, [session, refreshKey]);
 
   // Keep the session fresh if another tab/window approved the member
   useEffect(() => {
