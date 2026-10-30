@@ -3,6 +3,7 @@ import { ArrowRight, HandCoins, ReceiptText, ShieldCheck } from 'lucide-react';
 import { Crest } from '../components/Crest';
 import schoolHero from '../assets/school-hero.jpg';
 import { isLiveSupabaseConfigured } from '../services/supabaseClient';
+import { InstallAppButton } from '../components/InstallAppButton';
 
 /**
  * Welcome / onboarding — one fixed phone screen, real photo asset
@@ -51,6 +52,9 @@ export function WelcomeScreen({
         >
           Login
         </button>
+        <div className="mt-2 shrink-0">
+          <InstallAppButton variant="welcome" />
+        </div>
 
         <div className="mt-4 grid shrink-0 grid-cols-3 gap-2 text-center">
           {[

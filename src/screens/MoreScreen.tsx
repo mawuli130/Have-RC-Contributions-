@@ -15,6 +15,7 @@ import {
   Wallet,
 } from 'lucide-react';
 import { Avatar, InfoNote, SectionHeader, Sheet, SimplePill } from '../components/ui';
+import { InstallAppButton } from '../components/InstallAppButton';
 import { formatMemberId } from '../utils/formatters';
 import { useApp, useServiceData } from '../context/AppContext';
 import { getMyComputation, getNotifications, reseedDemoData } from '../services/databaseService';
@@ -95,6 +96,7 @@ export function MoreScreen() {
             <span className="min-w-0 flex-1"><span className="block truncate text-[13.5px] font-bold text-navy-950">About App</span><span className="block truncate text-[11.5px] text-slate-500">Have R/C JHS 2022 · v1.0</span></span>
             <ChevronRight size={17} className="shrink-0 text-slate-300" />
           </button>
+          <InstallAppButton variant="row" />
         </div>
 
         {isAdmin ? (
