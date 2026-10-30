@@ -58,7 +58,7 @@ describe('PWA installability', () => {
     expect(sw).toContain('clients.claim()');
     expect(sw).toContain("addEventListener('push'");
     expect(sw).toContain("addEventListener('notificationclick'");
-    expect(sw).toContain("'v2'");
+    expect(sw).toContain("'v3'");
     expect(sw).toContain('/manifest.webmanifest');
     expect(sw).toContain('/icons/icon-512.png');
   });
