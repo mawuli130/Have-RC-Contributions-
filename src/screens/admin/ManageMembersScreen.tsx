@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Check, Search, ShieldOff, UserCheck, UserX, Users } from 'lucide-react';
 import {
   Alert,
@@ -21,13 +21,39 @@ import {
   type AdminMemberRow,
 } from '../../services/databaseService';
 import { formatDateShort, formatGHS } from '../../utils/formatters';
+import { isLiveSupabaseConfigured } from '../../services/supabaseClient';
+import {
+  liveApproveMember,
+  liveListMembers,
+  liveRejectMember,
+  liveSetMemberRole,
+} from '../../services/liveAuth';
 import type { AppRole } from '../../types/database';
 
 type Filter = 'pending' | 'approved' | 'rejected' | 'all';
 
 export function ManageMembersScreen() {
-  const { goBack, toast, refresh, session } = useApp();
-  const rows = useServiceData<AdminMemberRow[]>(() => getAdminMemberRows());
+  const { goBack, toast, refresh, refreshKey, session } = useApp();
+  const rows = useServiceData<AdminMemberRow[]>(() =>
+    isLiveSupabaseConfigured ? [] : getAdminMemberRows()
+  );
+  // Live mode: the real member list comes from Supabase profiles.
+  const [liveRows, setLiveRows] = useState<AdminMemberRow[] | null>(null);
+  useEffect(() => {
+    if (!isLiveSupabaseConfigured) return;
+    let active = true;
+    liveListMembers()
+      .then((list) => {
+        if (active) setLiveRows(list);
+      })
+      .catch((err) => {
+        if (active) setError(err instanceof Error ? err.message : 'Could not load members.');
+      });
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+  const memberList = isLiveSupabaseConfigured ? (liveRows ?? []) : (rows.data ?? []);
   const [filter, setFilter] = useState<Filter>('pending');
   const [query, setQuery] = useState('');
   const [approveTarget, setApproveTarget] = useState<AdminMemberRow | null>(null);
@@ -38,28 +64,32 @@ export function ManageMembersScreen() {
   const [error, setError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
-    const list = rows.data ?? [];
+    const list = memberList;
     const q = query.trim().toLowerCase();
     return list
       .filter((r) => (filter === 'all' ? true : r.membership_status === filter))
       .filter((r) => (q ? r.full_name.toLowerCase().includes(q) || r.email.toLowerCase().includes(q) : true));
-  }, [rows.data, filter, query]);
+  }, [memberList, filter, query]);
 
   const counts = useMemo(() => {
-    const list = rows.data ?? [];
+    const list = memberList;
     return {
       pending: list.filter((r) => r.membership_status === 'pending').length,
       approved: list.filter((r) => r.membership_status === 'approved').length,
       rejected: list.filter((r) => r.membership_status === 'rejected').length,
       all: list.length,
     };
-  }, [rows.data]);
+  }, [memberList]);
 
-  const doApprove = () => {
+  const doApprove = async () => {
     if (!approveTarget) return;
     setBusy(true);
     try {
-      approveMember(approveTarget.user_id);
+      if (isLiveSupabaseConfigured) {
+        await liveApproveMember(approveTarget.user_id);
+      } else {
+        approveMember(approveTarget.user_id);
+      }
       toast.success(`${approveTarget.full_name} has been approved.`);
       setApproveTarget(null);
       refresh();
@@ -70,11 +100,15 @@ export function ManageMembersScreen() {
     }
   };
 
-  const doReject = () => {
+  const doReject = async () => {
     if (!rejectTarget) return;
     setBusy(true);
     try {
-      rejectMember(rejectTarget.user_id, rejectReason);
+      if (isLiveSupabaseConfigured) {
+        await liveRejectMember(rejectTarget.user_id, rejectReason);
+      } else {
+        rejectMember(rejectTarget.user_id, rejectReason);
+      }
       toast.info(`${rejectTarget.full_name} was not approved.`);
       setRejectTarget(null);
       setRejectReason('');
@@ -86,11 +120,15 @@ export function ManageMembersScreen() {
     }
   };
 
-  const doRole = (role: AppRole) => {
+  const doRole = async (role: AppRole) => {
     if (!roleTarget) return;
     setBusy(true);
     try {
-      setMemberRole(roleTarget.user_id, role);
+      if (isLiveSupabaseConfigured) {
+        await liveSetMemberRole(roleTarget.user_id, role);
+      } else {
+        setMemberRole(roleTarget.user_id, role);
+      }
       toast.success(`${roleTarget.full_name} is now ${role}.`);
       setRoleTarget(null);
       refresh();
