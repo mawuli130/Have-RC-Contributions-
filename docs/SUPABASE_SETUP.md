@@ -11,22 +11,25 @@ This guide connects the app to a real Supabase project. The app is fully usable 
 3. Choose the region closest to Ghana (e.g. `eu-west-1` / `eu-central-1`) and set a strong **database password**. Store it in a password manager — it is never needed by the app.
 4. Wait for provisioning to finish (~2 minutes).
 
-## 2. Run the migration
+## 2. Run the migrations
 
-1. In the dashboard open **SQL Editor → New query**.
-2. Paste the whole contents of [`../supabase/migrations/001_initial_schema.sql`](../supabase/migrations/001_initial_schema.sql).
-3. Press **Run**. You should see `Success. No rows returned`.
+In the dashboard open **SQL Editor → New query** and run these files **in order**. Each must finish with `Success. No rows returned` before you run the next:
+
+1. [`../supabase/migrations/001_initial_schema.sql`](../supabase/migrations/001_initial_schema.sql) — tables, RLS, financial RPCs, first-admin bootstrap.
+2. [`../supabase/migrations/002_weekly_schedule.sql`](../supabase/migrations/002_weekly_schedule.sql) — admin-set weekly schedule columns.
+3. [`../supabase/migrations/003_live_accounts.sql`](../supabase/migrations/003_live_accounts.sql) — **required for real accounts**: automatically creates the pending profile + member role whenever someone registers, and adds the guarded `admin_set_membership` / `admin_set_role` functions the app uses for approvals.
 
 The migration creates:
 
 - Enums, tables, indexes, foreign keys and money constraints (`NUMERIC(12,2)`).
 - Helper functions `has_admin_or_treasurer_role()` and `is_approved_member()`.
 - Atomic RPCs: `verify_payment_submission()`, `post_group_expense()`, `bootstrap_first_admin()`.
+- A trigger on `auth.users` that creates each new member's pending profile + role (without it, registered accounts never appear in `profiles`).
 - Triggers that block deletion of posted expenses and ledger rows.
 - Row Level Security policies on every table, all switched **on**.
 - The audit log, notifications and secure file-attachment tables.
 
-> If you re-run the migration it is safe: every `CREATE` is `IF NOT EXISTS` / guarded.
+> Re-running a migration is safe: tables use `IF NOT EXISTS`, functions are `CREATE OR REPLACE`, and every policy is dropped and recreated (`DROP POLICY IF EXISTS`). If a run stops with a red error, fix that error and run the same file again — it will pick up cleanly.
 
 ## 3. Configure email authentication
 

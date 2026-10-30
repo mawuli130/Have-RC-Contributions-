@@ -8,9 +8,12 @@ The first administrator is created by the **database owner** (whoever controls t
 
 ## Step 1 — Create a normal account
 
+> Prerequisites: migrations `001`, `002` **and `003`** have been run (see `SUPABASE_SETUP.md`), and the app is deployed with `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` set — the Welcome screen shows **Connected to Supabase**. Without `003`, registrations create an Auth login but no profile row, and Step 2 cannot find the account.
+
 1. Open the app and tap **Join the Group**.
 2. Register with the real email address of the person who will administer the group, e.g. `treasurer.have2022@gmail.com`.
-3. Accept the privacy notice. The account is created as a **pending member** with the `member` role.
+3. Accept the privacy notice. Supabase creates the login, and a database trigger automatically adds the **pending member** profile + `member` role.
+4. If **Confirm email** is on (Authentication → Providers → Email), click the confirmation link in the inbox first. The pending profile already exists either way.
 
 ## Step 2 — Promote that account in the SQL Editor
 

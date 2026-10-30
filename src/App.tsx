@@ -31,6 +31,9 @@ import { FinancialReportsScreen } from './screens/admin/FinancialReportsScreen';
 import { AdminAuditLogScreen } from './screens/admin/AdminAuditLogScreen';
 import { RecordOfflinePaymentScreen } from './screens/admin/RecordOfflinePaymentScreen';
 import { getPendingPayments, getSessionUser } from './services/databaseService';
+import { isLiveSupabaseConfigured } from './services/supabaseClient';
+import { liveGetSessionUser } from './services/liveAuth';
+import { Crest } from './components/Crest';
 
 /** Screens that are reachable only by authorized administrators/treasurers. */
 const ADMIN_ROUTES = new Set([
@@ -71,7 +74,18 @@ function isAdminSafe(): boolean {
 }
 
 function ScreenRouter() {
-  const { session, route, tab, goBack, navigate, setSession, switchTab, toast } = useApp();
+  const { session, authReady, route, tab, goBack, navigate, setSession, switchTab, toast, logout } = useApp();
+
+  // Live mode only: brief splash while the Supabase session is restored.
+  if (!authReady) {
+    return (
+      <div className="app-shell app-fixed flex flex-col items-center justify-center bg-navy-950 px-6 text-center">
+        <Crest size={72} />
+        <p className="mt-4 text-[15px] font-bold text-white">Have R/C JHS 2022</p>
+        <p className="mt-1 text-[12.5px] text-navy-200">Loading your account…</p>
+      </div>
+    );
+  }
 
   // Stay in sync if the session changes underneath us (approval, role change).
   useEffect(() => {
@@ -114,6 +128,18 @@ function ScreenRouter() {
         profile={session.profile}
         rejected={session.profile.membership_status === 'rejected'}
         onRefresh={() => {
+          if (isLiveSupabaseConfigured) {
+            void liveGetSessionUser().then((latest) => {
+              if (latest?.profile.membership_status === 'approved') {
+                setSession(latest);
+                toast.success('Your membership has been approved. Welcome!');
+              } else {
+                if (latest) setSession(latest);
+                toast.info('Still awaiting approval. Please check again shortly.');
+              }
+            });
+            return;
+          }
           const latest = getSessionUser();
           if (latest?.profile.membership_status === 'approved') {
             setSession(latest);
@@ -122,7 +148,7 @@ function ScreenRouter() {
             toast.info('Still awaiting approval. Please check again shortly.');
           }
         }}
-        onLogout={() => setSession(null)}
+        onLogout={logout}
       />
     );
   }

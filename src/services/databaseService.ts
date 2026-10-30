@@ -228,6 +228,53 @@ export function getSessionUser(): AuthenticatedUser | null {
   return { profile: toProfile(user), role: user.role };
 }
 
+/* ------------------------------------------------------------------ */
+/* Live-mode mirror                                                    */
+/* When the app is connected to Supabase, accounts live in Supabase    */
+/* Auth + profiles (see services/liveAuth.ts). The contribution       */
+/* screens still read the local engine, so the signed-in Supabase     */
+/* user is mirrored into local state. Demo seed data is wiped first   */
+/* so a live deployment never shows invented members or balances.     */
+/* ------------------------------------------------------------------ */
+
+export function syncLocalMirrorUser(user: AuthenticatedUser): void {
+  if (loadState().is_demo_seed) {
+    resetToBlank();
+  }
+  writeState((s) => {
+    const p = user.profile;
+    const existing = s.users.find((u) => u.id === p.id);
+    const mirrored: LocalUser = {
+      id: p.id,
+      email: p.email,
+      // Passwords are managed by Supabase Auth in live mode; never stored here.
+      password_hash: existing?.password_hash ?? '',
+      full_name: p.full_name,
+      phone: p.phone,
+      avatar_url: p.avatar_url,
+      membership_status: p.membership_status,
+      role: user.role,
+      privacy_accepted_at: p.privacy_accepted_at,
+      approved_by: p.approved_by,
+      approved_at: p.approved_at,
+      created_at: p.created_at,
+      updated_at: p.updated_at,
+    };
+    if (existing) {
+      Object.assign(existing, mirrored);
+    } else {
+      s.users.push(mirrored);
+    }
+    s.session_user_id = p.id;
+  });
+}
+
+export function clearLocalMirrorSession(): void {
+  writeState((s) => {
+    s.session_user_id = null;
+  });
+}
+
 export function requestPasswordReset(email: string): string {
   const state = loadState();
   const user = state.users.find((u) => u.email.toLowerCase() === email.trim().toLowerCase());

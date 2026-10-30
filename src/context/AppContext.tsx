@@ -1,6 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import type { AuthenticatedUser } from '../types/database';
 import { getSessionUser, signOut } from '../services/databaseService';
+import { isLiveSupabaseConfigured, supabase } from '../services/supabaseClient';
+import { liveGetSessionUser, liveSignOut } from '../services/liveAuth';
 import { useToasts, type Toast } from '../hooks/useApp';
 
 export type TabKey = 'home' | 'contributions' | 'fund' | 'members' | 'more';
@@ -47,6 +49,8 @@ export const TAB_SCREEN: Record<TabKey, Route> = {
 
 interface AppContextValue {
   session: AuthenticatedUser | null;
+  /** False only while a live Supabase session is being restored on start. */
+  authReady: boolean;
   tab: TabKey;
   route: Route | null;
   canGoBack: boolean;
@@ -70,7 +74,10 @@ interface AppContextValue {
 const AppContext = createContext<AppContextValue | null>(null);
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSessionState] = useState<AuthenticatedUser | null>(() => getSessionUser());
+  const [session, setSessionState] = useState<AuthenticatedUser | null>(() =>
+    isLiveSupabaseConfigured ? null : getSessionUser()
+  );
+  const [authReady, setAuthReady] = useState(!isLiveSupabaseConfigured);
   const [tab, setTab] = useState<TabKey>('home');
   const [route, setRoute] = useState<Route | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -80,8 +87,43 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
 
   const refreshSession = useCallback(() => {
+    if (isLiveSupabaseConfigured) {
+      void liveGetSessionUser().then((latest) => {
+        setSessionState(latest);
+        setRefreshKey((k) => k + 1);
+      });
+      return;
+    }
     setSessionState(getSessionUser());
     setRefreshKey((k) => k + 1);
+  }, []);
+
+  // Live mode: restore the Supabase session on start and keep it in sync.
+  useEffect(() => {
+    if (!isLiveSupabaseConfigured || !supabase) return;
+    let active = true;
+    liveGetSessionUser()
+      .then((latest) => {
+        if (active) setSessionState(latest);
+      })
+      .finally(() => {
+        if (active) setAuthReady(true);
+      });
+    const { data: subscription } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT') {
+        setSessionState(null);
+        return;
+      }
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        void liveGetSessionUser().then((latest) => {
+          if (active) setSessionState(latest);
+        });
+      }
+    });
+    return () => {
+      active = false;
+      subscription.subscription.unsubscribe();
+    };
   }, []);
 
   const navigate = useCallback((name: ScreenName, params?: Record<string, string>) => {
@@ -114,6 +156,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    if (isLiveSupabaseConfigured) {
+      void liveSignOut().finally(() => setSession(null));
+      return;
+    }
     signOut();
     setSession(null);
   }, [setSession]);
@@ -121,6 +167,17 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Keep the session fresh if another tab/window approved the member
   useEffect(() => {
     const onFocus = () => {
+      if (isLiveSupabaseConfigured) {
+        void liveGetSessionUser().then((latest) => {
+          if (
+            latest?.profile.membership_status !== session?.profile.membership_status ||
+            latest?.role !== session?.role
+          ) {
+            refreshSession();
+          }
+        });
+        return;
+      }
       const latest = getSessionUser();
       if (latest?.profile.membership_status !== session?.profile.membership_status || latest?.role !== session?.role) {
         refreshSession();
@@ -133,6 +190,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const value = useMemo<AppContextValue>(
     () => ({
       session,
+      authReady,
       tab,
       route,
       canGoBack: historyRef.current.length > 0,
@@ -146,7 +204,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       toast,
       isAdmin: Boolean(session && (session.role === 'admin' || session.role === 'treasurer')),
     }),
-    [session, tab, route, refreshKey, refresh, navigate, goBack, switchTab, setSession, logout, toast]
+    [session, authReady, tab, route, refreshKey, refresh, navigate, goBack, switchTab, setSession, logout, toast]
   );
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

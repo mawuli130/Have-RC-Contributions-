@@ -658,18 +658,23 @@ ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
 -- Profiles: Users can read their own profile; approved members can read approved profiles; admins can read/update all
+DROP POLICY IF EXISTS "Users can read own profile" ON public.profiles;
 CREATE POLICY "Users can read own profile" ON public.profiles
   FOR SELECT USING (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Approved members can read approved member profiles" ON public.profiles;
 CREATE POLICY "Approved members can read approved member profiles" ON public.profiles
   FOR SELECT USING (public.is_approved_member(auth.uid()) AND membership_status = 'approved');
 
+DROP POLICY IF EXISTS "Admins can read all profiles" ON public.profiles;
 CREATE POLICY "Admins can read all profiles" ON public.profiles
   FOR SELECT USING (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Users can insert own pending profile on signup" ON public.profiles;
 CREATE POLICY "Users can insert own pending profile on signup" ON public.profiles
   FOR INSERT WITH CHECK (auth.uid() = id AND membership_status = 'pending');
 
+DROP POLICY IF EXISTS "Users can update own non-sensitive profile details" ON public.profiles;
 CREATE POLICY "Users can update own non-sensitive profile details" ON public.profiles
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (
@@ -677,45 +682,57 @@ CREATE POLICY "Users can update own non-sensitive profile details" ON public.pro
     AND membership_status = (SELECT p.membership_status FROM public.profiles p WHERE p.id = auth.uid())
   );
 
+DROP POLICY IF EXISTS "Admins can update member approval status" ON public.profiles;
 CREATE POLICY "Admins can update member approval status" ON public.profiles
   FOR UPDATE USING (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- User Roles: Members can view their own role; ONLY admins can alter roles
+DROP POLICY IF EXISTS "Users can read own role" ON public.user_roles;
 CREATE POLICY "Users can read own role" ON public.user_roles
   FOR SELECT USING (auth.uid() = user_id OR public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Only admins can insert or update roles" ON public.user_roles;
 CREATE POLICY "Only admins can insert or update roles" ON public.user_roles
   FOR ALL USING (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- Contribution Rules & Periods: Approved members can read; only admins can modify
+DROP POLICY IF EXISTS "Approved members can view contribution rules" ON public.contribution_rules;
 CREATE POLICY "Approved members can view contribution rules" ON public.contribution_rules
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can manage contribution rules" ON public.contribution_rules;
 CREATE POLICY "Admins can manage contribution rules" ON public.contribution_rules
   FOR ALL USING (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Approved members can view contribution periods" ON public.contribution_periods;
 CREATE POLICY "Approved members can view contribution periods" ON public.contribution_periods
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can manage contribution periods" ON public.contribution_periods;
 CREATE POLICY "Admins can manage contribution periods" ON public.contribution_periods
   FOR ALL USING (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- Contribution Obligations: Approved members can read obligations for group transparency; only admins/RPC modify
+DROP POLICY IF EXISTS "Approved members can view contribution obligations" ON public.contribution_obligations;
 CREATE POLICY "Approved members can view contribution obligations" ON public.contribution_obligations
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can manage contribution obligations" ON public.contribution_obligations;
 CREATE POLICY "Admins can manage contribution obligations" ON public.contribution_obligations
   FOR ALL USING (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- Payment Submissions:
 -- STRICT PRIVACY: Only the submitting member and authorized admins can read payment_submissions
 -- (because it contains transaction_reference and evidence_attachment_id).
+DROP POLICY IF EXISTS "Members can read own payment submissions" ON public.payment_submissions;
 CREATE POLICY "Members can read own payment submissions" ON public.payment_submissions
   FOR SELECT USING (auth.uid() = member_id);
 
+DROP POLICY IF EXISTS "Admins can read all payment submissions" ON public.payment_submissions;
 CREATE POLICY "Admins can read all payment submissions" ON public.payment_submissions
   FOR SELECT USING (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Approved members can submit own pending payments" ON public.payment_submissions;
 CREATE POLICY "Approved members can submit own pending payments" ON public.payment_submissions
   FOR INSERT WITH CHECK (
     auth.uid() = member_id
@@ -724,11 +741,13 @@ CREATE POLICY "Approved members can submit own pending payments" ON public.payme
     AND is_offline_entry = FALSE
   );
 
+DROP POLICY IF EXISTS "Only admins can update or record offline payments" ON public.payment_submissions;
 CREATE POLICY "Only admins can update or record offline payments" ON public.payment_submissions
   FOR ALL USING (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- File Attachments:
 -- Payment evidence is strictly restricted to owner + admins!
+DROP POLICY IF EXISTS "Authorized access to file attachments" ON public.file_attachments;
 CREATE POLICY "Authorized access to file attachments" ON public.file_attachments
   FOR SELECT USING (
     auth.uid() = owner_id
@@ -736,45 +755,58 @@ CREATE POLICY "Authorized access to file attachments" ON public.file_attachments
     OR (scope = 'avatar' AND public.is_approved_member(auth.uid()))
   );
 
+DROP POLICY IF EXISTS "Approved members can upload own attachments" ON public.file_attachments;
 CREATE POLICY "Approved members can upload own attachments" ON public.file_attachments
   FOR INSERT WITH CHECK (auth.uid() = owner_id AND public.is_approved_member(auth.uid()));
 
 -- Expenses & Adjustments: Approved members can read; only admins can insert/update
+DROP POLICY IF EXISTS "Approved members can view posted expenses" ON public.expenses;
 CREATE POLICY "Approved members can view posted expenses" ON public.expenses
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Only admins can create or adjust expenses" ON public.expenses;
 CREATE POLICY "Only admins can create or adjust expenses" ON public.expenses
   FOR INSERT WITH CHECK (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Only admins can update expenses via adjustment" ON public.expenses;
 CREATE POLICY "Only admins can update expenses via adjustment" ON public.expenses
   FOR UPDATE USING (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Approved members can view expense adjustments" ON public.expense_adjustments;
 CREATE POLICY "Approved members can view expense adjustments" ON public.expense_adjustments
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Only admins can insert expense adjustments" ON public.expense_adjustments;
 CREATE POLICY "Only admins can insert expense adjustments" ON public.expense_adjustments
   FOR INSERT WITH CHECK (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- Financial Ledger: Approved members can read; only admins/RPC can insert
+DROP POLICY IF EXISTS "Approved members can view financial ledger" ON public.financial_ledger;
 CREATE POLICY "Approved members can view financial ledger" ON public.financial_ledger
   FOR SELECT USING (public.is_approved_member(auth.uid()));
 
+DROP POLICY IF EXISTS "Only admins can insert ledger entries" ON public.financial_ledger;
 CREATE POLICY "Only admins can insert ledger entries" ON public.financial_ledger
   FOR INSERT WITH CHECK (public.has_admin_or_treasurer_role(auth.uid()));
 
 -- Notifications: Users can read and mark their own notifications as read
+DROP POLICY IF EXISTS "Users can read own notifications" ON public.notifications;
 CREATE POLICY "Users can read own notifications" ON public.notifications
   FOR SELECT USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Users can update own notifications" ON public.notifications;
 CREATE POLICY "Users can update own notifications" ON public.notifications
   FOR UPDATE USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Admins can insert notifications" ON public.notifications;
 CREATE POLICY "Admins can insert notifications" ON public.notifications
   FOR INSERT WITH CHECK (public.has_admin_or_treasurer_role(auth.uid()) OR auth.uid() = user_id);
 
 -- Audit Logs: Only admins can read audit logs
+DROP POLICY IF EXISTS "Only admins can read audit logs" ON public.audit_logs;
 CREATE POLICY "Only admins can read audit logs" ON public.audit_logs
   FOR SELECT USING (public.has_admin_or_treasurer_role(auth.uid()));
 
+DROP POLICY IF EXISTS "Admins can insert audit logs" ON public.audit_logs;
 CREATE POLICY "Admins can insert audit logs" ON public.audit_logs
   FOR INSERT WITH CHECK (public.has_admin_or_treasurer_role(auth.uid()));

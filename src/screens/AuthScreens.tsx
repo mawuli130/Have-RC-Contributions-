@@ -3,6 +3,8 @@ import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Lock, Mail, ShieldAlert, Use
 import { Alert, ScreenHeader } from '../components/ui';
 import { Crest } from '../components/Crest';
 import { ServiceError, requestPasswordReset, signIn, signUp } from '../services/databaseService';
+import { isLiveSupabaseConfigured } from '../services/supabaseClient';
+import { liveRequestPasswordReset, liveSignIn, liveSignUp } from '../services/liveAuth';
 import { DEMO_ACCOUNTS } from '../services/localStore';
 
 export function LoginScreen({
@@ -24,12 +26,16 @@ export function LoginScreen({
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setBusy(true);
     try {
-      signIn(email, password);
+      if (isLiveSupabaseConfigured) {
+        await liveSignIn(email, password);
+      } else {
+        signIn(email, password);
+      }
       onSuccess();
     } catch (err) {
       setError(err instanceof ServiceError ? err.message : 'Login failed. Please try again.');
@@ -140,7 +146,7 @@ export function LoginScreen({
         </div>
         <button
           type="button"
-          onClick={() => setInfo('Google sign-in opens when the Google provider is enabled in Supabase Auth (see docs/SUPABASE_SETUP.md). For now, please sign in with your email and password, or use a demo account below.')}
+          onClick={() => setInfo(isLiveSupabaseConfigured ? 'Google sign-in opens when the Google provider is enabled in Supabase Auth (see docs/SUPABASE_SETUP.md). For now, please sign in with your email and password.' : 'Google sign-in opens when the Google provider is enabled in Supabase Auth (see docs/SUPABASE_SETUP.md). For now, please sign in with your email and password, or use a demo account below.')}
           className="btn min-h-[50px] border border-[#D8E2F0] bg-white text-[15px] font-semibold text-navy-950"
         >
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[15px] font-extrabold" aria-hidden>
@@ -156,6 +162,7 @@ export function LoginScreen({
           </button>
         </p>
 
+        {!isLiveSupabaseConfigured ? (
         <details className="mt-4 rounded-2xl border border-[#E8EEF7] bg-white p-3.5">
           <summary className="cursor-pointer text-[12.5px] font-bold uppercase tracking-wide text-navy-700">Demo accounts</summary>
           <p className="mt-1 text-[12px] text-slate-500">Tap to fill.</p>
@@ -176,6 +183,7 @@ export function LoginScreen({
             ))}
           </div>
         </details>
+        ) : null}
       </div>
 
       {showForgot ? (
@@ -199,8 +207,15 @@ export function LoginScreen({
               <button
                 type="button"
                 className="btn-primary flex-1"
-                onClick={() => {
-                  setInfo(requestPasswordReset(forgotEmail));
+                onClick={async () => {
+                  try {
+                    const message = isLiveSupabaseConfigured
+                      ? await liveRequestPasswordReset(forgotEmail)
+                      : requestPasswordReset(forgotEmail);
+                    setInfo(message);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : 'Could not send the reset link.');
+                  }
                   setShowForgot(false);
                 }}
               >
@@ -231,17 +246,30 @@ export function RegisterScreen({
   const [accepted, setAccepted] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setInfo(null);
     if (password !== confirm) {
       setError('The two passwords do not match.');
       return;
     }
     setBusy(true);
     try {
+      if (isLiveSupabaseConfigured) {
+        const result = await liveSignUp({ fullName, email, password, phone, acceptedPrivacy: accepted });
+        if (result.needsEmailConfirmation) {
+          setInfo(
+            `Account created for ${email.trim()}. Please open the confirmation email we sent you, then log in. After that, an admin will approve your membership.`
+          );
+          return;
+        }
+        onRegistered(result.fullName);
+        return;
+      }
       const session = signUp({ fullName, email, password, phone, acceptedPrivacy: accepted });
       onRegistered(session.profile.full_name);
     } catch (err) {
@@ -263,6 +291,14 @@ export function RegisterScreen({
           <div className="mb-3">
             <Alert tone="error" title="Please check the form" onClose={() => setError(null)}>
               {error}
+            </Alert>
+          </div>
+        ) : null}
+
+        {info ? (
+          <div className="mb-3">
+            <Alert tone="success" title="Check your email" onClose={() => setInfo(null)}>
+              {info}
             </Alert>
           </div>
         ) : null}
