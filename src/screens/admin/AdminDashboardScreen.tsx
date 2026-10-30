@@ -95,6 +95,14 @@ export function AdminDashboardScreen() {
 
         <div className="mt-5">
           <SectionHeader title="Quick Actions" />
+          <button
+            type="button"
+            onClick={() => navigate('admin-contribution-settings')}
+            className="btn-gold mb-2.5 min-h-[52px] w-full text-[15px]"
+            data-testid="admin-set-payment-amount"
+          >
+            <Settings2 size={17} /> Set Payment Amount &amp; Weeks
+          </button>
           <div className="grid grid-cols-2 gap-2.5">
             <button type="button" onClick={() => navigate('admin-members')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><Users size={16} /> Manage Members</button>
             <button type="button" onClick={() => navigate('admin-review-payments')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><ClipboardCheck size={16} /> Review Payments</button>
