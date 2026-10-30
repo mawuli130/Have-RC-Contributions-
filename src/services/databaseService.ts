@@ -14,7 +14,7 @@ import type {
   PublicMemberPaymentSummary,
   RecentActivityItem,
 } from '../types/database';
-import { roundMoney, buildWhatsAppReminderMessage, buildWhatsAppUrl } from '../utils/formatters';
+import { roundMoney, formatGHS, buildWhatsAppReminderMessage, buildWhatsAppUrl } from '../utils/formatters';
 import {
   DEMO_ACCOUNTS,
   addMonths,
@@ -273,12 +273,14 @@ export function changeMyPassword(currentPassword: string, newPassword: string): 
 /* ------------------------------------------------------------------ */
 
 export function getGroupSummary(): GroupFinancialSummary {
+  ensureWeeklySchedule();
   const state = loadState();
   requireApproved(state);
   return computeGroupSummary(state);
 }
 
 export function getPublicMembers(): PublicMemberPaymentSummary[] {
+  ensureWeeklySchedule();
   const state = loadState();
   requireApproved(state);
   return state.users
@@ -290,12 +292,14 @@ export function getPublicMembers(): PublicMemberPaymentSummary[] {
 }
 
 export function getMyComputation(): MemberComputation | null {
+  ensureWeeklySchedule();
   const state = loadState();
   const user = requireApproved(state);
   return computeMember(state, user.id);
 }
 
 export function getMyObligations(): ContributionObligation[] {
+  ensureWeeklySchedule();
   const state = loadState();
   const user = requireApproved(state);
   return state.obligations
@@ -334,6 +338,7 @@ export function getWalletRecipient(): { momoNumber: string; momoName: string } {
 }
 
 export function getContributionRule(): ContributionRule | null {
+  ensureWeeklySchedule();
   const state = loadState();
   requireApproved(state);
   return state.contribution_rules[0] ?? null;
@@ -370,6 +375,7 @@ export function getRecentActivity(limit = 12): RecentActivityItem[] {
 }
 
 export function getNotifications(): AppNotification[] {
+  ensureWeeklySchedule();
   const state = loadState();
   const user = currentUser(state);
   return state.notifications
@@ -521,6 +527,10 @@ export interface RuleInput {
   title: string;
   amountGhs: number | null; // null = deliberately unset
   frequency: ContributionRule['frequency'];
+  /** 1 = every week (default), 2 = every 2 weeks. Weekly only. */
+  everyWeeks?: number;
+  /** Total number of weeks/periods. null = no end. */
+  durationPeriods?: number | null;
   startDate: string;
   dueDay: number;
   gracePeriodDays: number;
@@ -549,6 +559,15 @@ export function saveContributionRule(input: RuleInput): { periodsCreated: number
       throw new ServiceError('Choose the first contribution start date before activating the schedule.');
     }
     if (input.dueDay < 1 || input.dueDay > 31) throw new ServiceError('Due day must be between 1 and 31.');
+    const everyWeeks = Math.round(input.everyWeeks ?? 1);
+    if (everyWeeks < 1 || everyWeeks > 12) throw new ServiceError('Weeks between payments must be 1 to 12.');
+    const durationPeriods =
+      input.durationPeriods === null || input.durationPeriods === undefined || (input.durationPeriods as unknown) === ''
+        ? null
+        : Math.round(input.durationPeriods);
+    if (durationPeriods !== null && (durationPeriods < 1 || durationPeriods > 260)) {
+      throw new ServiceError('Duration must be 1 to 260 weeks/periods, or blank for no end.');
+    }
     if (input.gracePeriodDays < 0 || input.gracePeriodDays > 60) {
       throw new ServiceError('Grace period must be between 0 and 60 days.');
     }
@@ -561,6 +580,8 @@ export function saveContributionRule(input: RuleInput): { periodsCreated: number
         title: input.title.trim() || 'Have R/C JHS 2022 Contribution',
         amount_ghs: input.amountGhs,
         frequency: input.frequency,
+        every_weeks: everyWeeks,
+        duration_periods: durationPeriods,
         start_date: input.startDate || null,
         due_day: input.dueDay,
         grace_period_days: input.gracePeriodDays,
@@ -578,6 +599,8 @@ export function saveContributionRule(input: RuleInput): { periodsCreated: number
     rule.title = input.title.trim() || rule.title;
     rule.amount_ghs = input.amountGhs ?? null;
     rule.frequency = input.frequency;
+    rule.every_weeks = everyWeeks;
+    rule.duration_periods = durationPeriods;
     rule.start_date = input.startDate || null;
     rule.due_day = input.dueDay;
     rule.grace_period_days = input.gracePeriodDays;
@@ -606,6 +629,8 @@ export function saveContributionRule(input: RuleInput): { periodsCreated: number
       {
         amount_ghs: rule.amount_ghs,
         frequency: rule.frequency,
+        every_weeks: rule.every_weeks ?? 1,
+        duration_periods: rule.duration_periods ?? null,
         is_active: rule.is_active,
         periods_created: created,
       }
@@ -614,23 +639,40 @@ export function saveContributionRule(input: RuleInput): { periodsCreated: number
   return { periodsCreated: created };
 }
 
-function periodLabelFor(dateISO: string, frequency: ContributionRule['frequency']): string {
-  if (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') {
-    return monthLabel(dateISO);
-  }
+function periodDays(rule: ContributionRule): number {
+  if (rule.frequency === 'weekly') return 7 * (rule.every_weeks ?? 1);
+  return 0;
+}
+
+function periodLabelFor(
+  dateISO: string,
+  frequency: ContributionRule['frequency'],
+  index = 0,
+  rule?: ContributionRule
+): string {
   if (frequency === 'weekly') {
+    const days = rule ? Math.max(7, periodDays(rule)) : 7;
     const d = new Date(`${dateISO}T00:00:00`);
     const end = new Date(d);
-    end.setDate(end.getDate() + 6);
-    return `Week of ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+    end.setDate(end.getDate() + days - 1);
+    const range = `${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+    return days === 7 ? `Week ${index + 1} · ${range}` : `Period ${index + 1} · ${range}`;
+  }
+  if (frequency === 'monthly' || frequency === 'quarterly' || frequency === 'annual') {
+    return monthLabel(dateISO);
   }
   return monthLabel(dateISO);
 }
 
-function stepPeriod(dateISO: string, frequency: ContributionRule['frequency'], index: number): string {
+function stepPeriod(
+  dateISO: string,
+  frequency: ContributionRule['frequency'],
+  index: number,
+  rule?: ContributionRule
+): string {
   switch (frequency) {
     case 'weekly':
-      return addDays(dateISO, 7 * index);
+      return addDays(dateISO, 7 * (rule?.every_weeks ?? 1) * index);
     case 'quarterly':
       return addMonths(dateISO, 3 * index);
     case 'annual':
@@ -668,9 +710,9 @@ export function generateObligations(s: LocalDbState, rule: ContributionRule): nu
   const approvedMembers = s.users.filter((u) => u.membership_status === 'approved');
 
   let created = 0;
-  const maxPeriods = 60;
-  for (let i = 0; i < maxPeriods; i += 1) {
-    const periodStart = stepPeriod(start, rule.frequency, i);
+  const totalPeriods = rule.duration_periods ?? (rule.frequency === 'weekly' ? 260 : 60);
+  for (let i = 0; i < totalPeriods; i += 1) {
+    const periodStart = stepPeriod(start, rule.frequency, i, rule);
     if (periodStart > today) break; // no obligations for future unpaid periods
     const key = periodKeyFor(periodStart, rule.frequency);
     if (existingKeys.has(key)) {
@@ -680,12 +722,17 @@ export function generateObligations(s: LocalDbState, rule: ContributionRule): nu
     const y = Number(periodStart.slice(0, 4));
     const m = Number(periodStart.slice(5, 7));
     const lastDay = new Date(y, m, 0).getDate();
-    const dueDate = `${periodStart.slice(0, 7)}-${`${Math.min(rule.due_day, lastDay)}`.padStart(2, '0')}`;
+    const dueDate =
+      rule.frequency === 'weekly'
+        ? addDays(periodStart, Math.max(7, periodDays(rule)) - 1) // pay within the week: last day
+        : rule.frequency === 'one_time'
+          ? periodStart
+          : `${periodStart.slice(0, 7)}-${`${Math.min(rule.due_day, lastDay)}`.padStart(2, '0')}`;
     const period = {
       id: newId('per'),
       rule_id: rule.id,
       period_key: key,
-      period_label: periodLabelFor(periodStart, rule.frequency),
+      period_label: periodLabelFor(periodStart, rule.frequency, i, rule),
       start_date: periodStart,
       due_date: dueDate,
       grace_period_days: rule.grace_period_days,
@@ -741,6 +788,138 @@ function generateObligationsForMember(s: LocalDbState, member: LocalUser, rule: 
       updated_at: new Date().toISOString(),
     });
   });
+}
+
+/* ------------------------------------------------------------------ */
+/* Weekly sync: new week starts, missed week becomes outstanding      */
+/* ------------------------------------------------------------------ */
+
+function scheduleNeedsSync(state: LocalDbState): boolean {
+  const rule = state.contribution_rules.find((r) => r.is_active && r.amount_ghs !== null && r.start_date);
+  if (!rule) return false;
+  const today = todayISO();
+  const total = rule.duration_periods ?? (rule.frequency === 'weekly' ? 260 : 60);
+  for (let i = 0; i < total; i += 1) {
+    const start = stepPeriod(rule.start_date as string, rule.frequency, i, rule);
+    if (start > today) break;
+    const key = periodKeyFor(start, rule.frequency);
+    const period = state.contribution_periods.find((x) => x.period_key === key);
+    if (!period) return true;
+    const missingMember = state.users.some(
+      (u) =>
+        u.membership_status === 'approved' &&
+        !state.obligations.some((o) => o.member_id === u.id && o.period_id === period.id)
+    );
+    if (missingMember) return true;
+  }
+  // Missed (ended) weeks need one notification each.
+  const missingNote = state.obligations.some((o) => {
+    if (!isOverdue(o) || o.amount_paid_ghs >= o.amount_due_ghs) return false;
+    const user = state.users.find((u) => u.id === o.member_id);
+    if (!user || user.membership_status !== 'approved') return false;
+    return !state.notifications.some((n) => n.id === `ntf_out_${o.id}`);
+  });
+  return missingNote;
+}
+
+function syncScheduleAndNotifications(state: LocalDbState): void {
+  const rule = state.contribution_rules.find((r) => r.is_active && r.amount_ghs !== null && r.start_date);
+  if (!rule) return;
+  generateObligations(state, rule);
+  const today = todayISO();
+  void today;
+  state.users
+    .filter((u) => u.membership_status === 'approved')
+    .forEach((user) => {
+      state.obligations
+        .filter((o) => o.member_id === user.id && isOverdue(o) && o.amount_paid_ghs < o.amount_due_ghs)
+        .forEach((o) => {
+          const id = `ntf_out_${o.id}`;
+          if (state.notifications.some((n) => n.id === id)) return;
+          const unpaid = roundMoney(o.amount_due_ghs - o.amount_paid_ghs);
+          state.notifications.push({
+            id,
+            user_id: user.id,
+            title: 'Outstanding payment',
+            message: `${o.period_label}: ${formatGHS(unpaid)} outstanding.`,
+            type: 'outstanding_reminder',
+            is_read: false,
+            created_at: new Date().toISOString(),
+          });
+        });
+    });
+}
+
+/** Runs at most when a new week/period or a missed-week notice is missing. Safe on every read. */
+export function ensureWeeklySchedule(): void {
+  try {
+    const state = loadState();
+    if (!scheduleNeedsSync(state)) return;
+    writeState((s) => syncScheduleAndNotifications(s));
+  } catch {
+    // Reads must never fail because of a background sync.
+  }
+}
+
+export interface WeekOutstandingMember {
+  member_id: string;
+  full_name: string;
+  avatar_url: string | null;
+  amount_due_ghs: number;
+  amount_paid_ghs: number;
+  outstanding_ghs: number;
+}
+
+export interface WeekOutstanding {
+  period_id: string;
+  period_label: string;
+  start_date: string;
+  due_date: string;
+  /** True when this is a past, ended week. False when it is the week we are in now. */
+  is_ended: boolean;
+  members: WeekOutstandingMember[];
+}
+
+/** People who have not paid for the latest ended week (or this week, if none has ended yet). */
+export function getCurrentWeekOutstanding(): WeekOutstanding | null {
+  ensureWeeklySchedule();
+  const state = loadState();
+  requireApproved(state);
+  const periods = [...state.contribution_periods].sort((a, b) => a.start_date.localeCompare(b.start_date));
+  if (periods.length === 0) return null;
+  const today = todayISO();
+  const ended = periods.filter((per) => addDays(per.due_date, per.grace_period_days || 0) < today);
+  const period =
+    ended[ended.length - 1] ??
+    periods.filter((per) => per.start_date <= today).slice(-1)[0] ??
+    periods[periods.length - 1];
+  const isEnded = ended.length > 0 && ended[ended.length - 1].id === period.id;
+  void today;
+  const members = state.users
+    .filter((u) => u.membership_status === 'approved')
+    .map((u) => {
+      const o = state.obligations.find((x) => x.member_id === u.id && x.period_id === period.id);
+      const due = o ? roundMoney(o.amount_due_ghs) : roundMoney(period.amount_due_ghs);
+      const paid = o ? roundMoney(o.amount_paid_ghs) : 0;
+      return {
+        member_id: u.id,
+        full_name: u.full_name,
+        avatar_url: u.avatar_url,
+        amount_due_ghs: due,
+        amount_paid_ghs: paid,
+        outstanding_ghs: roundMoney(Math.max(0, due - paid)),
+      };
+    })
+    .filter((m) => m.outstanding_ghs > 0)
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  return {
+    period_id: period.id,
+    period_label: period.period_label,
+    start_date: period.start_date,
+    due_date: period.due_date,
+    is_ended: isEnded,
+    members,
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -917,7 +1096,7 @@ export function verifyPayment(paymentId: string): void {
       entry_date: payment.payment_date,
       entry_type: 'income',
       category: 'Member Contribution',
-      description: `Member contribution verified (${payment.member_name})`,
+      description: payment.member_name,
       amount_ghs: payment.amount_ghs,
       signed_amount_ghs: payment.amount_ghs,
       recorded_status: 'Verified',
@@ -1043,7 +1222,7 @@ export function recordOfflinePayment(input: OfflinePaymentInput): void {
       entry_date: payment.payment_date,
       entry_type: 'income',
       category: 'Member Contribution',
-      description: `Member contribution verified (${member.full_name})`,
+      description: member.full_name,
       amount_ghs: amount,
       signed_amount_ghs: amount,
       recorded_status: 'Verified',
@@ -1209,7 +1388,7 @@ export function postExpense(input: ExpenseInput): ExpenseRecord {
       entry_date: expense.expense_date,
       entry_type: 'expense',
       category: expense.category,
-      description: `Expense: ${expense.title} — ${expense.reason}`,
+      description: expense.title,
       amount_ghs: amount,
       signed_amount_ghs: -amount,
       recorded_status: 'Posted',
@@ -1279,7 +1458,7 @@ export function reverseExpense(expenseId: string, reason: string): void {
       entry_date: todayISO(),
       entry_type: 'expense_reversal',
       category: expense.category,
-      description: `Reversal of expense: ${expense.title} — ${reason.trim()}`,
+      description: expense.title,
       amount_ghs: previous,
       signed_amount_ghs: previous,
       recorded_status: 'Reversed',
@@ -1341,7 +1520,7 @@ export function adjustExpense(expenseId: string, newAmountGhs: number, reason: s
         entry_date: todayISO(),
         entry_type: 'expense_adjustment',
         category: expense.category,
-        description: `Expense correction: ${expense.title} increased by GH₵${delta.toFixed(2)} — ${reason.trim()}`,
+        description: expense.title,
         amount_ghs: delta,
         signed_amount_ghs: -delta,
         recorded_status: 'Adjusted',
@@ -1358,7 +1537,7 @@ export function adjustExpense(expenseId: string, newAmountGhs: number, reason: s
         entry_date: todayISO(),
         entry_type: 'expense_adjustment',
         category: expense.category,
-        description: `Expense correction: ${expense.title} reduced by GH₵${Math.abs(delta).toFixed(2)} — ${reason.trim()}`,
+        description: expense.title,
         amount_ghs: Math.abs(delta),
         signed_amount_ghs: Math.abs(delta),
         recorded_status: 'Adjusted',
@@ -1418,6 +1597,7 @@ export interface OutstandingRow {
 }
 
 export function getOutstandingMembers(periodFilter?: string): OutstandingRow[] {
+  ensureWeeklySchedule();
   const state = loadState();
   requireAdmin(state);
   return state.users
@@ -1455,6 +1635,7 @@ export function getOutstandingMembers(periodFilter?: string): OutstandingRow[] {
 }
 
 export function getPeriodOptions(): Array<{ key: string; label: string }> {
+  ensureWeeklySchedule();
   const state = loadState();
   requireApproved(state);
   return [...state.contribution_periods]

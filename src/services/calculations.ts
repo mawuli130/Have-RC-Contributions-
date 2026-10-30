@@ -1,11 +1,12 @@
 import type {
+  ContributionObligation,
   ContributionRule,
   GroupFinancialSummary,
   PublicMemberPaymentSummary,
   PublicPaymentStatusLabel,
   RecentActivityItem,
 } from '../types/database';
-import { roundMoney, formatDateShort } from '../utils/formatters';
+import { roundMoney, formatDateShort, formatGHS } from '../utils/formatters';
 import type { LocalDbState, LocalUser } from './localStore';
 import { isOverdue, todayISO } from './localStore';
 
@@ -26,6 +27,14 @@ export interface MemberComputation {
   status_label: PublicPaymentStatusLabel;
   relevant_period_label: string;
   has_schedule: boolean;
+  /** Money missed from weeks/periods that have already ended. */
+  overdue_outstanding_ghs: number;
+  current_period_label: string;
+  current_period_due_ghs: number;
+  current_period_paid_ghs: number;
+  current_period_outstanding_ghs: number;
+  latest_ended_period_label: string;
+  latest_ended_outstanding_ghs: number;
 }
 
 function computeStatusLabel(args: {
@@ -83,6 +92,19 @@ export function computeMember(state: LocalDbState, memberId: string): MemberComp
   const hasSchedule = obligations.length > 0;
   const activeRule = state.contribution_rules.find((r) => r.is_active && r.amount_ghs !== null);
 
+  const today = todayISO();
+  const periodStart = new Map(state.contribution_periods.map((p) => [p.id, p.start_date]));
+  const startOf = (o: ContributionObligation) => periodStart.get(o.period_id) ?? o.due_date;
+  const currentObligation =
+    obligations.find((o) => startOf(o) <= today && o.due_date >= today) ??
+    [...obligations].reverse().find((o) => startOf(o) <= today) ??
+    obligations[obligations.length - 1];
+  const ended = obligations.filter((o) => isOverdue(o));
+  const latestEnded = ended[ended.length - 1];
+  const overdueOutstanding = roundMoney(
+    ended.reduce((sum, o) => sum + Math.max(0, o.amount_due_ghs - o.amount_paid_ghs), 0)
+  );
+
   // "Relevant period": oldest unpaid period, else latest period
   const oldestUnpaid = obligations.find((o) => o.status !== 'paid');
   const relevantPeriod =
@@ -111,6 +133,19 @@ export function computeMember(state: LocalDbState, memberId: string): MemberComp
     }),
     relevant_period_label: relevantPeriod,
     has_schedule: hasSchedule && Boolean(activeRule),
+    overdue_outstanding_ghs: overdueOutstanding,
+    current_period_label: currentObligation?.period_label ?? '—',
+    current_period_due_ghs: currentObligation ? roundMoney(currentObligation.amount_due_ghs) : 0,
+    current_period_paid_ghs: currentObligation ? roundMoney(currentObligation.amount_paid_ghs) : 0,
+    current_period_outstanding_ghs: currentObligation
+      ? roundMoney(Math.max(0, currentObligation.amount_due_ghs - currentObligation.amount_paid_ghs))
+      : 0,
+    latest_ended_period_label: latestEnded?.period_label ?? currentObligation?.period_label ?? '—',
+    latest_ended_outstanding_ghs: latestEnded
+      ? roundMoney(Math.max(0, latestEnded.amount_due_ghs - latestEnded.amount_paid_ghs))
+      : currentObligation
+        ? roundMoney(Math.max(0, currentObligation.amount_due_ghs - currentObligation.amount_paid_ghs))
+        : 0,
   };
 }
 
@@ -136,6 +171,11 @@ export function toPublicSummary(computation: MemberComputation): PublicMemberPay
     latest_verified_payment_amount_ghs: computation.latest_verified_amount,
     payment_status: computation.status_label,
     relevant_period_label: computation.relevant_period_label,
+    overdue_outstanding_ghs: computation.overdue_outstanding_ghs,
+    current_period_label: computation.current_period_label,
+    current_period_outstanding_ghs: computation.current_period_outstanding_ghs,
+    latest_ended_period_label: computation.latest_ended_period_label,
+    latest_ended_outstanding_ghs: computation.latest_ended_outstanding_ghs,
   };
 }
 
@@ -199,8 +239,8 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
         timestamp: entry.created_at,
         date_label: formatDateShort(entry.entry_date),
         type: 'contribution_verified',
-        title: 'Contribution verified',
-        description: `${name}'s contribution was confirmed by the treasurer.`,
+        title: name,
+        description: '',
         amount_ghs: entry.amount_ghs,
         is_positive: true,
       });
@@ -212,7 +252,7 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
         date_label: formatDateShort(entry.entry_date),
         type: 'expense_recorded',
         title: expense?.title ?? 'Group expense',
-        description: expense?.reason ?? 'A group expense was recorded.',
+        description: '',
         amount_ghs: entry.amount_ghs,
         is_positive: false,
       });
@@ -223,8 +263,8 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
         timestamp: entry.created_at,
         date_label: formatDateShort(entry.entry_date),
         type: 'expense_adjusted',
-        title: entry.entry_type === 'expense_reversal' ? 'Expense reversed' : 'Expense adjusted',
-        description: `${expense?.title ?? 'An expense'} was corrected through the audited adjustment process.`,
+        title: expense?.title ?? 'Expense',
+        description: entry.entry_type === 'expense_reversal' ? 'Reversed' : 'Adjusted',
         amount_ghs: Math.abs(entry.signed_amount_ghs),
         is_positive: entry.signed_amount_ghs > 0,
       });
@@ -239,8 +279,8 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
         timestamp: p.updated_at,
         date_label: formatDateShort(p.updated_at.slice(0, 10)),
         type: 'payment_rejected',
-        title: 'Payment not confirmed',
-        description: `A submitted payment from ${p.member_name} could not be verified.`,
+        title: p.member_name,
+        description: 'Not confirmed',
         amount_ghs: null,
         is_positive: null,
       });
@@ -252,10 +292,8 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
       timestamp: rule.updated_at,
       date_label: formatDateShort(rule.updated_at.slice(0, 10)),
       type: 'rule_updated',
-      title: rule.is_active ? 'Contribution rule updated' : 'Contribution rule deactivated',
-      description: rule.is_active
-        ? `${rule.title}: GH₵${Number(rule.amount_ghs ?? 0).toFixed(2)} ${rule.frequency.replace('_', ' ')}.`
-        : 'The treasurer has paused contribution collection.',
+      title: 'Contribution',
+      description: rule.is_active ? `${formatGHS(Number(rule.amount_ghs ?? 0))} · ${rule.frequency.replace('_', ' ')}` : 'Paused',
       amount_ghs: null,
       is_positive: null,
     });
@@ -269,8 +307,8 @@ export function computeRecentActivity(state: LocalDbState, limit = 12): RecentAc
         timestamp: u.approved_at as string,
         date_label: formatDateShort((u.approved_at as string).slice(0, 10)),
         type: 'member_approved',
-        title: 'New member approved',
-        description: `${u.full_name} joined the group.`,
+        title: u.full_name,
+        description: 'Joined',
         amount_ghs: null,
         is_positive: null,
       });

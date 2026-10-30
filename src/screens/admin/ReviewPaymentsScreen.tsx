@@ -194,12 +194,6 @@ export function ReviewPaymentsScreen() {
           )}
         </div>
 
-        <div className="mt-4">
-          <InfoNote>
-            Verifying posts the payment to the ledger exactly once and allocates it to the member&apos;s
-            oldest unpaid periods. Rejecting never changes any balance.
-          </InfoNote>
-        </div>
       </div>
 
       <Sheet

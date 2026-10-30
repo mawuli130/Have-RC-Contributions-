@@ -4,10 +4,10 @@
 
 @layer base {
   :root {
-    --navy: #0f2547;
-    --navy-soft: #1c3a66;
-    --gold: #d99b26;
-    --bg: #f4f7fb;
+    --navy: #0b3570;
+    --navy-soft: #144582;
+    --gold: #ffc400;
+    --bg: #eef3fa;
     --green: #1e9e63;
     --orange: #e08a1e;
     --red: #cf3c3c;
@@ -50,13 +50,21 @@
 }
 
 @layer components {
+  /* One phone screen: the shell owns the height, content scrolls inside it (never the whole page). */
   .app-shell {
-    @apply mx-auto w-full max-w-[480px] min-h-screen bg-[#F4F7FB] pb-24;
-    box-shadow: 0 0 60px rgba(15, 37, 71, 0.08);
+    @apply mx-auto w-full max-w-[480px] h-[100dvh] overflow-y-auto overflow-x-hidden bg-[#EEF3FA] pb-24;
+    box-shadow: 0 0 60px rgba(11, 53, 112, 0.10);
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fixed-height screen that must not scroll at all (Home, Welcome, Login). */
+  .app-fixed {
+    @apply overflow-hidden pb-0;
   }
 
   .card {
-    @apply rounded-2xl bg-white p-4 shadow-[0_2px_10px_rgba(15,37,71,0.07)] border border-[#E8EEF7];
+    @apply rounded-[20px] bg-white p-4 shadow-[0_2px_12px_rgba(11,53,112,0.08)] border border-[#E3ECF7];
   }
 
   .card-flat {
@@ -68,11 +76,11 @@
   }
 
   .btn-primary {
-    @apply btn bg-navy-900 text-white hover:bg-navy-800;
+    @apply btn bg-navy-800 text-white shadow-[0_6px_16px_rgba(11,53,112,0.25)] hover:bg-navy-700;
   }
 
   .btn-gold {
-    @apply btn bg-gold-500 text-navy-950 hover:bg-gold-400;
+    @apply btn bg-gold-500 text-navy-950 shadow-[0_6px_16px_rgba(255,196,0,0.35)] hover:bg-gold-400;
   }
 
   .btn-outline {
@@ -199,7 +207,7 @@
 
 @media (min-width: 768px) {
   .app-shell {
-    @apply my-4 rounded-3xl min-h-[calc(100vh-2rem)] overflow-hidden;
+    @apply my-4 rounded-3xl h-[calc(100dvh-2rem)];
   }
   .tab-bar {
     @apply bottom-4 rounded-b-3xl;

@@ -12,6 +12,7 @@ export type ScreenName =
   | 'awaiting'
   | 'submit-payment'
   | 'payment-history'
+  | 'expenses'
   | 'financial-history'
   | 'expense-detail'
   | 'expense-edit'

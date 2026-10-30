@@ -57,13 +57,18 @@ export function OutstandingMembersScreen() {
 
   return (
     <div className="app-shell">
-      <ScreenHeader title="Outstanding Members" subtitle="Send a friendly reminder" onBack={goBack} />
+      <ScreenHeader title="Reminders" subtitle="Outstanding Members · Send a friendly reminder" onBack={goBack} />
       <div className="px-4 pt-4">
         {error ? (
           <div className="mb-3">
             <Alert tone="error" onClose={() => setError(null)}>{error}</Alert>
           </div>
         ) : null}
+
+        <div className="mb-3 flex items-start gap-2 rounded-2xl border border-[#F3D9A8] bg-[#FFF6E6] p-3.5">
+          <Bell size={16} className="mt-0.5 shrink-0 text-[#9A5B06]" />
+          <p className="text-[12.5px] leading-relaxed text-[#7A5A20]">Here are members who still need to pay. You can send a friendly reminder via WhatsApp.</p>
+        </div>
 
         <div className="rounded-2xl bg-navy-900 p-3.5 text-white">
           <p className="text-[11px] uppercase tracking-wide text-navy-200">Total outstanding</p>
@@ -120,8 +125,8 @@ export function OutstandingMembersScreen() {
                         paid {formatGHS(r.total_paid)} of {formatGHS(r.total_due)}
                       </span>
                     </div>
-                    <button type="button" onClick={() => openReminder(r)} className="btn-outline btn-sm mt-2">
-                      <MessageCircle size={13} /> Reminder
+                    <button type="button" aria-label="Reminder" onClick={() => openReminder(r)} className="btn-primary btn-sm mt-2 min-h-[38px] rounded-full px-4">
+                      <MessageCircle size={13} /> Send Reminder
                     </button>
                   </div>
                 </div>
@@ -130,22 +135,6 @@ export function OutstandingMembersScreen() {
           )}
         </div>
 
-        <div className="mt-4">
-          <InfoNote>
-            WhatsApp opens with a prefilled private message addressed to one member. The app cannot
-            confirm that a message was delivered or read. Private balances are never posted to a group
-            chat.
-          </InfoNote>
-        </div>
-
-        <div className="mt-3">
-          <SectionHeader title="Reminder tips" />
-          <div className="card text-[12px] leading-relaxed text-slate-600">
-            <p className="flex items-start gap-1.5"><Users size={14} className="mt-0.5 shrink-0 text-navy-400" /> Use a warm tone — most members simply forgot.</p>
-            <p className="mt-1 flex items-start gap-1.5"><Bell size={14} className="mt-0.5 shrink-0 text-navy-400" /> The in-app reminder appears in their notifications the next time they open the app.</p>
-            <p className="mt-1 flex items-start gap-1.5"><Send size={14} className="mt-0.5 shrink-0 text-navy-400" /> Always check the phone number before sending on WhatsApp.</p>
-          </div>
-        </div>
       </div>
 
       <Sheet
@@ -210,10 +199,7 @@ export function OutstandingMembersScreen() {
               </div>
             ) : null}
 
-            <p className="text-[11px] leading-relaxed text-slate-400">
-              The message contains only this member&apos;s name, balance and period. Never forward it to a
-              group chat.
-            </p>
+
           </div>
         ) : null}
       </Sheet>

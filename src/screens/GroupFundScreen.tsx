@@ -56,31 +56,21 @@ export function GroupFundScreen() {
 
   return (
     <div className="app-shell">
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-2 border-b border-[#E8EEF7] bg-white/95 px-4 py-3 backdrop-blur">
-        <div className="min-w-0">
-          <h1 className="text-[17px] font-extrabold text-navy-950">Group Fund</h1>
-          <p className="text-[12px] text-slate-500">Recorded income and expenses</p>
-        </div>
-        {isAdmin ? (
-          <button type="button" onClick={() => navigate('admin-add-expense')} className="btn-gold btn-sm shrink-0" data-testid="fund-add-expense">
-            <Plus size={15} />
-            Add Expense
-          </button>
-        ) : null}
+      <header className="sticky top-0 z-30 bg-navy-900 px-4 py-3.5 text-white shadow-pop">
+        <h1 className="text-[17px] font-extrabold">Group Fund</h1>
+        <p className="text-[12px] text-navy-200">Recorded income and expenses</p>
       </header>
 
       <div className="px-4 pt-4">
         {/* Balance card */}
-        <div className="rounded-3xl bg-navy-900 p-4 text-white">
-          <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-200">
-            Current recorded balance
-          </p>
-          <p className="money mt-0.5 text-[30px] font-extrabold leading-tight">
-            {formatGHS(s?.current_recorded_balance_ghs ?? 0)}
-          </p>
-          <p className="mt-1 text-[11.5px] leading-snug text-navy-300">
-            Total recorded income − total posted expenses − other recorded outflows
-          </p>
+        <div className="rounded-[24px] bg-navy-900 p-4 text-white shadow-pop">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/15 text-gold-400"><Wallet size={20} /></span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-200">Current Balance</p>
+              <p className="money text-[26px] font-extrabold leading-tight">{formatGHS(s?.current_recorded_balance_ghs ?? 0)}</p>
+            </div>
+          </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-center">
             <div className="rounded-xl bg-white/10 py-2">
               <p className="text-[10px] uppercase tracking-wide text-navy-200">Contributions</p>
@@ -101,43 +91,36 @@ export function GroupFundScreen() {
           </div>
         </div>
 
-        <div className="mt-2.5">
-          <Alert tone="info">
-            These are <strong>recorded</strong> figures. They are not a confirmed bank or Mobile Money
-            balance until a separate reconciliation is done by the treasurer.
-          </Alert>
-        </div>
-
-        {/* Breakdown */}
-        <div className="mt-4">
-          <SectionHeader title="How the fund stands" caption="Each figure comes from the ledger" />
-          <div className="card space-y-2">
-            <FundRow label="Total verified contributions" value={formatGHS(s?.total_verified_contributions_ghs ?? 0)} icon={<CircleDollarSign size={15} />} />
-            <FundRow label="Other recorded income" value={formatGHS(s?.other_recorded_income_ghs ?? 0)} icon={<BadgeCheck size={15} />} />
-            <FundRow label="Total recorded income" value={formatGHS(s?.total_recorded_income_ghs ?? 0)} icon={<Building2 size={15} />} strong />
-            <FundRow label="Total posted expenses" value={`−${formatGHS(s?.total_posted_expenses_ghs ?? 0)}`} icon={<TrendingDown size={15} />} danger />
-            <FundRow label="Other recorded outflows" value={formatGHS(s?.other_recorded_outflows_ghs ?? 0)} icon={<Wallet size={15} />} />
-            <div className="mt-1 flex items-center justify-between gap-2 rounded-xl bg-[#F7FAFE] px-3 py-2.5">
-              <span className="text-[13px] font-bold text-navy-950">Current recorded balance</span>
-              <span className="money text-[15px] font-extrabold text-navy-950">
-                {formatGHS(s?.current_recorded_balance_ghs ?? 0)}
-              </span>
-            </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="card-flat p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total Contributions</p>
+            <p className="money mt-0.5 text-[16px] font-extrabold text-navy-950">{formatGHS(s?.total_verified_contributions_ghs ?? 0)}</p>
+          </div>
+          <div className="card-flat p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Total Expenses</p>
+            <p className="money mt-0.5 text-[16px] font-extrabold text-[#A82B2B]">{formatGHS(s?.total_posted_expenses_ghs ?? 0)}</p>
+          </div>
+          <div className="card-flat p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Other Income</p>
+            <p className="money mt-0.5 text-[16px] font-extrabold text-navy-950">{formatGHS(s?.other_recorded_income_ghs ?? 0)}</p>
+          </div>
+          <div className="rounded-2xl border border-[#A9DFC2] bg-[#E4F6EC] p-3">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-[#137447]">Recorded Balance</p>
+            <p className="money mt-0.5 text-[16px] font-extrabold text-[#137447]">{formatGHS(s?.current_recorded_balance_ghs ?? 0)}</p>
           </div>
         </div>
 
         {/* Expense history */}
         <div className="mt-5">
           <SectionHeader
-            title="Expense history"
-            caption={`${(expenses.data ?? []).length} posted expense${(expenses.data ?? []).length === 1 ? '' : 's'}`}
+            title="Recent Expenses"
             action={
               <button
                 type="button"
-                onClick={() => navigate('financial-history')}
+                onClick={() => navigate('expenses')}
                 className="flex items-center gap-0.5 text-[12.5px] font-bold text-navy-700"
               >
-                History <ArrowRight size={14} />
+                View All <ArrowRight size={14} />
               </button>
             }
           />
@@ -145,8 +128,8 @@ export function GroupFundScreen() {
             <div className="card-flat bg-white">
               <EmptyState
                 icon={<Receipt size={22} />}
-                title="No expenses recorded"
-                description="When the group spends money, the treasurer records it here with the reason and date."
+                title="No expenses yet"
+                description=""
                 action={
                   isAdmin ? (
                     <button type="button" onClick={() => navigate('admin-add-expense')} className="btn-primary">
@@ -158,7 +141,7 @@ export function GroupFundScreen() {
             </div>
           ) : (
             <div className="space-y-2">
-              {(expenses.data ?? []).map((e) => (
+              {(expenses.data ?? []).slice(0, 3).map((e) => (
                 <button
                   key={e.id}
                   type="button"
@@ -168,7 +151,6 @@ export function GroupFundScreen() {
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-[14px] font-bold text-navy-950">{e.title}</p>
-                      <p className="mt-0.5 line-clamp-2 text-[12px] leading-snug text-slate-600">{e.reason}</p>
                     </div>
                     <span className="money shrink-0 text-[15px] font-extrabold text-[#A82B2B]">
                       −{formatGHS(e.effective_amount_ghs)}
@@ -185,7 +167,7 @@ export function GroupFundScreen() {
                     ) : null}
                   </div>
                   <p className="mt-1.5 text-[11px] text-slate-400">
-                    {formatDateShort(e.expense_date)} · recorded by {e.created_by_name}
+                    {formatDateShort(e.expense_date)}
                   </p>
                 </button>
               ))}
@@ -193,34 +175,14 @@ export function GroupFundScreen() {
           )}
         </div>
 
-        {/* Admin quick tools */}
         {isAdmin ? (
-          <div className="mt-5">
-            <SectionHeader title="Treasurer tools" caption="Only administrators and treasurers see this" />
-            <div className="card grid grid-cols-2 gap-2">
-              <button type="button" onClick={() => navigate('admin-expense-history')} className="btn-outline btn-sm">
-                <FileText size={14} />
-                Expense records
-              </button>
-              <button type="button" onClick={() => navigate('admin-contribution-settings')} className="btn-outline btn-sm">
-                <Settings2 size={14} />
-                Settings
-              </button>
-            </div>
-          </div>
-        ) : null}
+          <button type="button" onClick={() => navigate('admin-add-expense')} className="btn-gold mt-4 min-h-[52px]" data-testid="fund-add-expense">
+            <Plus size={17} /> Add Expense
+          </button>
+        ) : (
+          <p className="mt-4 text-center text-[12px] font-medium text-slate-400">Admins only can add expenses.</p>
+        )}
 
-        <div className="mt-4">
-          <InfoNote>
-            Posted expenses cannot be silently deleted. Corrections go through an audited
-            reversal/adjustment process that keeps the original entry visible.
-          </InfoNote>
-        </div>
-
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <MiniStat label="Verified income entries" value={`${(income.data ?? []).length}`} />
-          <MiniStat label="Ledger net" value={formatSignedGHS(s?.current_recorded_balance_ghs ?? 0)} />
-        </div>
       </div>
 
       <Sheet open={Boolean(evidence)} title={evidence?.fileName ?? 'Receipt'} onClose={() => setEvidence(null)}>

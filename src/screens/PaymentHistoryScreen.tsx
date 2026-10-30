@@ -10,8 +10,8 @@ import {
   StatusPill,
 } from '../components/ui';
 import { useApp, useServiceData } from '../context/AppContext';
-import { getMyPayments, getPaymentEvidence } from '../services/databaseService';
-import { formatDateShort, formatDateTimeShort, formatGHS } from '../utils/formatters';
+import { getLedgerEntries, getMyPayments, getPaymentEvidence } from '../services/databaseService';
+import { formatDateShort, formatDateTimeShort, formatGHS, formatPaymentLine, shortActivityTitle } from '../utils/formatters';
 import type { PaymentSubmission } from '../types/database';
 
 const STATUS_TONE: Record<string, 'paid' | 'pending' | 'unpaid'> = {
@@ -25,6 +25,8 @@ export function PaymentHistoryScreen() {
   const payments = useServiceData<PaymentSubmission[]>(() => getMyPayments());
   const [evidence, setEvidence] = useState<{ dataUrl: string; fileName: string } | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
+  const [tab, setTab] = useState<'all' | 'mine' | 'group'>('all');
+  const groupEntries = useServiceData(() => getLedgerEntries({ type: 'income' }));
 
   const totals = useMemo(() => {
     const list = payments.data ?? [];
@@ -52,7 +54,7 @@ export function PaymentHistoryScreen() {
 
   return (
     <div className="app-shell">
-      <ScreenHeader title="My payment history" subtitle={session?.profile.full_name} onBack={goBack} />
+      <ScreenHeader title="Payment History" subtitle="My payment history" onBack={goBack} />
       <div className="px-4 pt-4">
         <div className="grid grid-cols-3 gap-2">
           <div className="card-flat p-2.5 text-center">
@@ -69,15 +71,43 @@ export function PaymentHistoryScreen() {
           </div>
         </div>
 
-        {(payments.data ?? []).length === 0 ? (
+        <div className="mt-3 flex rounded-full bg-[#EAF1FB] p-1" role="tablist" aria-label="Payment history filter">
+          {([['all', 'All'], ['mine', 'My Payments'], ['group', 'Group']] as const).map(([key, label]) => (
+            <button key={key} type="button" role="tab" aria-selected={tab === key} onClick={() => setTab(key)} className={`min-h-[38px] flex-1 rounded-full text-[13px] font-bold ${tab === key ? 'bg-navy-900 text-white shadow' : 'text-navy-700'}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'group' ? (
+          <div className="mt-3 space-y-2">
+            {(groupEntries.data ?? []).length === 0 ? (
+              <div className="card-flat bg-white"><EmptyState icon={<Receipt size={22} />} title="No payments yet" description="" /></div>
+            ) : (groupEntries.data ?? []).map((e) => (
+              <div key={e.id} className="card flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-[12px] font-semibold text-slate-500">{formatDateShort(e.entry_date)}</p>
+                  <p className="truncate text-[13px] font-bold text-navy-950">{shortActivityTitle(e.description)}</p>
+                  <p className="text-[11px] text-slate-500">{formatPaymentLine(e.entry_date, e.created_at)}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <span className="pill-paid">Verified</span>
+                  <p className="money mt-1 text-[14px] font-extrabold text-[#137447]">{formatGHS(e.amount_ghs)}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+
+        {tab !== 'group' && (payments.data ?? []).length === 0 ? (
           <div className="card-flat mt-3 bg-white">
             <EmptyState
               icon={<Receipt size={22} />}
               title="No payments yet"
-              description="When you submit a contribution payment it will appear here with its verification status."
+description="No payments yet."
             />
           </div>
-        ) : (
+        ) : tab === 'group' ? null : (
           <div className="mt-3 space-y-2">
             {(payments.data ?? []).map((p) => (
               <button key={p.id} type="button" onClick={() => setOpenId(p.id)} className="card w-full text-left">
@@ -85,7 +115,7 @@ export function PaymentHistoryScreen() {
                   <div className="min-w-0">
                     <p className="money text-[17px] font-extrabold text-navy-950">{formatGHS(p.amount_ghs)}</p>
                     <p className="text-[11.5px] text-slate-500">
-                      {formatDateShort(p.payment_date)} · {p.payment_method}
+                      {formatPaymentLine(p.payment_date, p.created_at)}
                       {p.is_offline_entry ? ' · recorded by treasurer' : ''}
                     </p>
                   </div>
@@ -125,12 +155,7 @@ export function PaymentHistoryScreen() {
           </div>
         )}
 
-        <div className="mt-3">
-          <InfoNote>
-            Pending and rejected payments never add to your verified total or the group balance. Only
-            you and the treasurer can see the reference and receipt for a payment.
-          </InfoNote>
-        </div>
+
       </div>
 
       <Sheet open={Boolean(open)} title="Payment details" onClose={() => setOpenId(null)}>
@@ -144,7 +169,7 @@ export function PaymentHistoryScreen() {
             </div>
             {open.status === 'pending' ? (
               <Alert tone="warning" title="Awaiting verification">
-                This payment is not counted yet. The treasurer will verify it shortly.
+                Not counted yet.
               </Alert>
             ) : null}
             <dl className="space-y-2 text-[13px]">
@@ -173,10 +198,7 @@ export function PaymentHistoryScreen() {
             ) : (
               <p className="rounded-xl bg-[#F7FAFE] p-3 text-[12px] text-slate-500">No receipt was attached.</p>
             )}
-            <p className="flex items-start gap-1.5 text-[11.5px] leading-relaxed text-slate-400">
-              <ShieldCheck size={13} className="mt-0.5 shrink-0" />
-              This record is private to you and the group treasurer.
-            </p>
+
           </div>
         ) : null}
       </Sheet>

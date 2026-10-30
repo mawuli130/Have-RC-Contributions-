@@ -108,8 +108,13 @@ export function SubmitPaymentScreen() {
 
   return (
     <div className="app-shell">
-      <ScreenHeader title="Submit a payment" subtitle="Tell the treasurer what you paid" onBack={goBack} />
+      <ScreenHeader title="Submit Payment" subtitle="Tell the treasurer what you paid" onBack={goBack} />
       <div className="px-4 pt-4">
+        <div className="flex items-start gap-2 rounded-2xl border border-navy-200 bg-navy-50 p-3.5">
+          <Info size={16} className="mt-0.5 shrink-0 text-navy-700" />
+          <p className="text-[12.5px] font-semibold text-navy-800">Fill in your payment.</p>
+        </div>
+        <div className="mt-3" />
         {error ? (
           <div className="mb-3">
             <Alert tone="error" title="Please check the form" onClose={() => setError(null)}>
@@ -151,7 +156,7 @@ export function SubmitPaymentScreen() {
         <form onSubmit={submit} className="mt-3 space-y-3.5">
           <div>
             <label className="label" htmlFor="pay-amount">
-              Amount paid (GHS)
+              Amount (GH₵) *
             </label>
             <input
               id="pay-amount"
@@ -160,20 +165,18 @@ export function SubmitPaymentScreen() {
               step="0.01"
               min="0.01"
               className="input money text-[20px] font-extrabold"
-              placeholder="0.00"
+              placeholder="e.g. 100"
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               required
               data-testid="payment-amount"
             />
-            <p className="field-help">
-              Partial payments are allowed. A payment covering several periods is split automatically.
-            </p>
+
           </div>
 
           <div>
             <label className="label" htmlFor="pay-date">
-              Date you paid
+              Payment Date *
             </label>
             <input
               id="pay-date"
@@ -188,23 +191,13 @@ export function SubmitPaymentScreen() {
           </div>
 
           <div>
-            <span className="label">Payment method</span>
-            <div className="grid grid-cols-2 gap-2">
+            <label className="label" htmlFor="pay-method">Payment Method *</label>
+            <select id="pay-method" className="input" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="" disabled>Select method</option>
               {METHODS.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMethod(m)}
-                  className={`min-h-[46px] rounded-xl border px-2 py-2 text-[13px] font-semibold ${
-                    method === m
-                      ? 'border-navy-900 bg-navy-900 text-white'
-                      : 'border-[#D8E2F0] bg-white text-navy-800'
-                  }`}
-                >
-                  {m}
-                </button>
+                <option key={m} value={m}>{m}</option>
               ))}
-            </div>
+            </select>
           </div>
 
           {unpaidPeriods.length > 0 ? (
@@ -225,29 +218,27 @@ export function SubmitPaymentScreen() {
                   </option>
                 ))}
               </select>
-              <p className="field-help">Any extra amount is applied to the next unpaid period.</p>
+
             </div>
           ) : null}
 
           <div>
             <label className="label" htmlFor="pay-ref">
-              Transaction reference <span className="font-normal normal-case text-slate-400">(optional)</span>
+              Transaction Reference *
             </label>
             <input
               id="pay-ref"
               className="input"
-              placeholder="e.g. MoMo transaction ID"
+              placeholder="e.g. MoMo ID or Bank Ref"
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               data-testid="payment-reference"
             />
-            <p className="field-help">
-              Private: only you and the treasurer can see this reference.
-            </p>
+
           </div>
 
           <FilePicker
-            label="Receipt or screenshot (optional)"
+            label="Upload Receipt (optional)"
             hint="A photo helps the treasurer confirm quickly. Private to you and the treasurer."
             value={evidence}
             onChange={setEvidence}
@@ -278,24 +269,16 @@ export function SubmitPaymentScreen() {
 
           <div className="flex items-start gap-2 rounded-xl border border-[#E3D2A8] bg-[#FFFBF0] p-3">
             <ShieldCheck size={15} className="mt-0.5 shrink-0 text-[#8A5A08]" />
-            <p className="text-[12px] leading-relaxed text-[#7A5A20]">
-              Your submission will show as <strong>Pending Verification</strong>. It only affects your
-              balance and the group fund after the treasurer verifies it.
-            </p>
+            <p className="text-[12px] font-semibold text-[#7A5A20]">Pending until verified.</p>
           </div>
 
-          <button type="submit" className="btn-gold" disabled={busy} data-testid="payment-submit">
+          <button type="submit" className="btn-primary min-h-[52px]" disabled={busy} data-testid="payment-submit">
             {busy ? <Loader2 size={17} className="animate-spin" /> : <Send size={17} />}
-            Submit for verification
+            Submit Payment
           </button>
         </form>
 
-        <div className="mt-3">
-          <InfoNote>
-            Paid today but forgot to submit? Add it now — the treasurer can match it to the payment
-            date you enter ({formatDateShort(todayISO())} or earlier).
-          </InfoNote>
-        </div>
+
       </div>
     </div>
   );

@@ -85,7 +85,7 @@ export function verifyPassword(password: string, hash: string): boolean {
 
 export function emptyState(): LocalDbState {
   return {
-    version: 1,
+    version: 2,
     users: [],
     contribution_rules: [],
     contribution_periods: [],
@@ -119,8 +119,14 @@ export function loadState(): LocalDbState {
       const raw = window.localStorage.getItem(STORAGE_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as LocalDbState;
-        if (parsed && parsed.version === 1) {
-          cache = { ...emptyState(), ...parsed };
+        if (parsed && (parsed.version === 1 || parsed.version === 2)) {
+          // Old demo data used a monthly example — replace it with the weekly seed.
+          if (parsed.is_demo_seed && parsed.version !== 2) {
+            cache = buildSeedState();
+            persist();
+            return cache;
+          }
+          cache = { ...emptyState(), ...parsed, version: 2 };
           return cache;
         }
       }
@@ -236,15 +242,16 @@ export function buildSeedState(): LocalDbState {
   const now = new Date();
   const createdAt = new Date(now.getTime() - 1000 * 60 * 60 * 24 * 90).toISOString();
 
+  // GH₵10 every week for 12 weeks. `paid` = weeks paid x GH₵10.
   const members: SeedMember[] = [
-    { name: 'Kofi Asante', email: 'admin@have2022.org', phone: '024 411 2200', role: 'admin', status: 'approved', paid: 400 },
-    { name: 'Akosua Frimpong', email: 'treasurer@have2022.org', phone: '020 553 8811', role: 'treasurer', status: 'approved', paid: 300 },
-    { name: 'Kwame Mensah', email: 'kwame@example.com', phone: '024 123 4567', role: 'member', status: 'approved', paid: 300 },
+    { name: 'Kofi Asante', email: 'admin@have2022.org', phone: '024 411 2200', role: 'admin', status: 'approved', paid: 120 },
+    { name: 'Akosua Frimpong', email: 'treasurer@have2022.org', phone: '020 553 8811', role: 'treasurer', status: 'approved', paid: 110 },
+    { name: 'Kwame Mensah', email: 'kwame@example.com', phone: '024 123 4567', role: 'member', status: 'approved', paid: 90 },
     { name: 'Ama Boateng', email: 'ama@example.com', phone: '055 987 6543', role: 'member', status: 'approved', paid: 0 },
-    { name: 'Yaw Owusu', email: 'yaw@example.com', phone: '027 334 1122', role: 'member', status: 'approved', paid: 200, pendingSubmission: 100 },
-    { name: 'Abena Sarpong', email: 'abena@example.com', phone: '024 665 7788', role: 'member', status: 'approved', paid: 400 },
-    { name: 'Kojo Antwi', email: 'kojo@example.com', role: 'member', status: 'approved', paid: 100 },
-    { name: 'Efua Adjei', email: 'efua@example.com', phone: '020 118 2244', role: 'member', status: 'approved', paid: 250 },
+    { name: 'Yaw Owusu', email: 'yaw@example.com', phone: '027 334 1122', role: 'member', status: 'approved', paid: 60, pendingSubmission: 10 },
+    { name: 'Abena Sarpong', email: 'abena@example.com', phone: '024 665 7788', role: 'member', status: 'approved', paid: 120 },
+    { name: 'Kojo Antwi', email: 'kojo@example.com', role: 'member', status: 'approved', paid: 40 },
+    { name: 'Efua Adjei', email: 'efua@example.com', phone: '020 118 2244', role: 'member', status: 'approved', paid: 70 },
     { name: 'Nana Yaa Darko', email: 'yaa@example.com', role: 'member', status: 'pending', paid: 0 },
   ];
 
@@ -267,18 +274,23 @@ export function buildSeedState(): LocalDbState {
 
   const admin = users[0];
 
-  // Contribution rule: ACTIVE at GH₵100 monthly, starting 4 months ago.
-  const startMonthDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
-  const startISO = toISODate(startMonthDate);
+  // Admin-set plan: GH₵10 every week, for 12 weeks, starting on a Monday 11 weeks ago.
+  // So Week 12 is the week we are in now; Weeks 1–11 have ended.
+  const monday = new Date(now);
+  monday.setHours(0, 0, 0, 0);
+  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7) - 11 * 7);
+  const startISO = toISODate(monday);
 
   const rule: ContributionRule = {
     id: newId('rule'),
-    title: 'Have R/C JHS 2022 Monthly Contribution',
-    amount_ghs: 100,
-    frequency: 'monthly',
+    title: 'Weekly Contribution',
+    amount_ghs: 10,
+    frequency: 'weekly',
+    every_weeks: 1,
+    duration_periods: 12,
     start_date: startISO,
-    due_day: 28,
-    grace_period_days: 5,
+    due_day: 7,
+    grace_period_days: 0,
     is_active: true,
     treasurer_momo_number: '024 411 2200',
     treasurer_momo_name: 'Kofi Asante (Treasurer)',
@@ -288,23 +300,23 @@ export function buildSeedState(): LocalDbState {
   };
   state.contribution_rules.push(rule);
 
-  // Periods: 4 monthly periods (3 complete + current)
+  // Periods: Week 1 … Week 12 (pay within the week — due on the last day)
   const periods: ContributionPeriod[] = [];
-  for (let i = 0; i < 4; i += 1) {
-    const start = addMonths(startISO, i);
-    const y = Number(start.slice(0, 4));
-    const m = Number(start.slice(5, 7));
-    const lastDay = new Date(y, m, 0).getDate();
-    const dueDate = `${start.slice(0, 7)}-${`${Math.min(rule.due_day, lastDay)}`.padStart(2, '0')}`;
+  for (let i = 0; i < 12; i += 1) {
+    const start = addDays(startISO, i * 7);
+    const dueDate = addDays(start, 6);
+    const s = new Date(`${start}T00:00:00`);
+    const e = new Date(`${dueDate}T00:00:00`);
+    const range = `${s.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} – ${e.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
     periods.push({
       id: newId('per'),
       rule_id: rule.id,
-      period_key: monthKey(start),
-      period_label: monthLabel(start),
+      period_key: `W${start}`,
+      period_label: `Week ${i + 1} · ${range}`,
       start_date: start,
       due_date: dueDate,
-      grace_period_days: rule.grace_period_days,
-      amount_due_ghs: 100,
+      grace_period_days: 0,
+      amount_due_ghs: 10,
       created_at: createdAt,
     });
   }
@@ -332,87 +344,62 @@ export function buildSeedState(): LocalDbState {
     });
   });
 
-  // Verified payments that allocate oldest-first, mirroring the live RPC
+  // One GH₵10 payment for each week the member has paid.
   members.forEach((seed) => {
     const user = users.find((u) => u.email === seed.email);
     if (!user || seed.paid <= 0) return;
-    let remaining = seed.paid;
-    // split into 1-2 verified payments for realism
-    const chunks: number[] = [];
-    if (seed.paid > 100) {
-      chunks.push(100);
-      remaining -= 100;
-      chunks.push(remaining);
-    } else {
-      chunks.push(seed.paid);
-    }
-    let dayOffset = 70;
-    chunks.forEach((amount) => {
-      const paymentDate = addDays(todayISO(), -dayOffset);
-      dayOffset -= 28;
+    const weeksPaid = Math.round(seed.paid / 10);
+    for (let w = 0; w < weeksPaid; w += 1) {
+      const period = periods[w];
+      const paymentDate = addDays(period.start_date, 1); // paid on day 2 of that week
       const payment: PaymentSubmission = {
         id: newId('pay'),
         member_id: user.id,
         member_name: user.full_name,
-        amount_ghs: roundMoney(amount),
+        amount_ghs: 10,
         allocated_amount_ghs: 0,
         unallocated_credit_ghs: 0,
         payment_date: paymentDate,
-        payment_method: amount >= 200 ? 'Mobile Money' : 'Cash',
-        transaction_reference: user.id === admin.id ? 'MM-8842-REF' : `REF-${Math.floor(Math.random() * 90000 + 10000)}`,
+        payment_method: 'Mobile Money',
+        transaction_reference: `REF-${Math.floor(Math.random() * 90000 + 10000)}`,
         evidence_attachment_id: null,
         has_evidence: false,
-        target_period_id: null,
-        notes: 'Verified by treasurer',
+        target_period_id: period.id,
+        notes: null,
         status: 'verified',
-        is_offline_entry: true,
-        recorded_by: admin.id,
+        is_offline_entry: false,
+        recorded_by: null,
         reviewed_by: admin.id,
         reviewed_by_name: admin.full_name,
         reviewed_at: `${paymentDate}T10:15:00.000Z`,
         rejection_reason: null,
-        created_at: `${paymentDate}T10:10:00.000Z`,
+        created_at: `${paymentDate}T09:00:00.000Z`,
         updated_at: `${paymentDate}T10:15:00.000Z`,
       };
-
-      // allocate
-      let toAllocate = payment.amount_ghs;
-      let allocatedTotal = 0;
-      const memberObligations = state.obligations
-        .filter((o) => o.member_id === user.id && o.status !== 'paid')
-        .sort((a, b) => a.due_date.localeCompare(b.due_date));
-      memberObligations.forEach((ob) => {
-        if (toAllocate <= 0) return;
-        const needed = roundMoney(ob.amount_due_ghs - ob.amount_paid_ghs);
-        if (needed <= 0) return;
-        const alloc = roundMoney(Math.min(toAllocate, needed));
+      const ob = state.obligations.find((o) => o.member_id === user.id && o.period_id === period.id);
+      if (ob) {
         state.allocations.push({
           id: newId('alc'),
           payment_id: payment.id,
           obligation_id: ob.id,
           member_id: user.id,
-          amount_allocated_ghs: alloc,
+          amount_allocated_ghs: 10,
           created_at: payment.created_at,
         });
-        ob.amount_paid_ghs = roundMoney(ob.amount_paid_ghs + alloc);
-        ob.status = ob.amount_paid_ghs >= ob.amount_due_ghs ? 'paid' : 'partially_paid';
+        ob.amount_paid_ghs = 10;
+        ob.status = 'paid';
         ob.updated_at = payment.created_at;
-        toAllocate = roundMoney(toAllocate - alloc);
-        allocatedTotal = roundMoney(allocatedTotal + alloc);
-      });
-
-      payment.allocated_amount_ghs = allocatedTotal;
-      payment.unallocated_credit_ghs = roundMoney(toAllocate);
+        payment.allocated_amount_ghs = 10;
+      }
       state.payments.push(payment);
-
       state.ledger.push({
         id: newId('led'),
         entry_date: payment.payment_date,
         entry_type: 'income',
         category: 'Member Contribution',
-        description: `Member contribution verified (${user.full_name})`,
-        amount_ghs: payment.amount_ghs,
-        signed_amount_ghs: payment.amount_ghs,
+        description: user.full_name,
+        amount_ghs: 10,
+        signed_amount_ghs: 10,
         recorded_status: 'Verified',
         source_payment_id: payment.id,
         source_expense_id: null,
@@ -420,7 +407,7 @@ export function buildSeedState(): LocalDbState {
         created_by: admin.id,
         created_at: payment.updated_at,
       });
-    });
+    }
 
     if (seed.pendingSubmission) {
       const paymentDate = addDays(todayISO(), -2);
@@ -455,7 +442,7 @@ export function buildSeedState(): LocalDbState {
   const expenseSeeds = [
     {
       title: 'Funeral Support',
-      amount: 250,
+      amount: 60,
       reason: "Contribution towards a former classmate's family funeral.",
       category: 'Welfare',
       vendor: 'Mensah Family',
@@ -463,7 +450,7 @@ export function buildSeedState(): LocalDbState {
     },
     {
       title: 'Printing of Constitution Copies',
-      amount: 180,
+      amount: 40,
       reason: 'Printed 60 copies of the association constitution for the general meeting.',
       category: 'Printing',
       vendor: 'Sharp Print Ventures',
@@ -471,7 +458,7 @@ export function buildSeedState(): LocalDbState {
     },
     {
       title: 'Meeting Refreshment',
-      amount: 320,
+      amount: 50,
       reason: 'Water and snacks for the October general meeting at Have.',
       category: 'Meetings',
       vendor: 'Auntie Ama Catering',
@@ -528,8 +515,8 @@ export function buildSeedState(): LocalDbState {
       action_type: 'SET_CONTRIBUTION_RULE',
       entity_type: 'contribution_rules',
       entity_id: rule.id,
-      summary: 'Activated monthly contribution of GH₵100.00 and generated member obligations',
-      metadata: { amount_ghs: 100, frequency: 'monthly' },
+      summary: 'Started weekly contribution of GH₵10.00 for 12 weeks',
+      metadata: { amount_ghs: 10, frequency: 'weekly', every_weeks: 1, duration_periods: 12 },
       created_at: createdAt,
     },
     ...expenseSeeds.map((seed, i) => ({
@@ -550,8 +537,8 @@ export function buildSeedState(): LocalDbState {
     {
       id: newId('ntf'),
       user_id: users[2].id,
-      title: 'Contribution Due',
-      message: 'Your monthly contribution of GH₵100.00 is due on the 28th. Thank you for supporting the group.',
+      title: 'This week',
+      message: 'GH₵10 for this week is not paid yet.',
       type: 'contribution_due',
       is_read: false,
       created_at: new Date(now.getTime() - 1000 * 60 * 60 * 20).toISOString(),
@@ -560,7 +547,7 @@ export function buildSeedState(): LocalDbState {
       id: newId('ntf'),
       user_id: users[2].id,
       title: 'Payment Verified',
-      message: 'Your contribution payment of GH₵100.00 has been verified and added to your record.',
+      message: 'Your GH₵10 payment has been verified.',
       type: 'payment_verified',
       is_read: true,
       created_at: new Date(now.getTime() - 1000 * 60 * 60 * 24 * 30).toISOString(),

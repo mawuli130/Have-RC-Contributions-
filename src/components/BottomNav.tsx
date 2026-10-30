@@ -31,9 +31,9 @@ export function BottomNav({
               onClick={() => onChange(key)}
               aria-current={isActive ? 'page' : undefined}
               data-testid={`tab-${key}`}
-              className={`tab-item relative ${isActive ? 'text-navy-900' : 'text-slate-400'}`}
+              className={`tab-item relative ${isActive ? 'text-navy-800' : 'text-slate-400'}`}
             >
-              <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${isActive ? 'bg-navy-50' : ''}`}>
+              <span className={`relative flex h-7 w-12 items-center justify-center rounded-full transition ${isActive ? 'bg-navy-100' : ''}`}>
                 <Icon size={20} strokeWidth={isActive ? 2.6 : 2} aria-hidden />
                 {key === 'more' && pendingCount > 0 ? (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#B8392F] px-1 text-[9.5px] font-bold text-white">
@@ -42,7 +42,7 @@ export function BottomNav({
                 ) : null}
               </span>
               <span className="leading-none">{label}</span>
-              {isActive ? <span className="absolute bottom-0 h-[3px] w-8 rounded-t-full bg-gold-500" /> : null}
+              {isActive ? <span className="absolute bottom-0 h-[3px] w-8 rounded-t-full bg-navy-800" /> : null}
             </button>
           );
         })}

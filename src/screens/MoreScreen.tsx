@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Bell,
   ChevronRight,
@@ -14,7 +14,8 @@ import {
   Users,
   Wallet,
 } from 'lucide-react';
-import { Avatar, InfoNote, SectionHeader, SimplePill } from '../components/ui';
+import { Avatar, InfoNote, SectionHeader, Sheet, SimplePill } from '../components/ui';
+import { formatMemberId } from '../utils/formatters';
 import { useApp, useServiceData } from '../context/AppContext';
 import { getMyComputation, getNotifications, reseedDemoData } from '../services/databaseService';
 import { formatGHS } from '../utils/formatters';
@@ -24,6 +25,8 @@ export function MoreScreen() {
   const mine = useServiceData(() => getMyComputation());
   const notifications = useServiceData(() => getNotifications());
   const unread = (notifications.data ?? []).filter((n) => !n.is_read).length;
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   const adminItems = [
     { label: 'Admin dashboard', desc: 'Overview of group finances and pending work', icon: <ShieldCheck size={17} />, screen: 'admin-dashboard' as const },
@@ -38,11 +41,11 @@ export function MoreScreen() {
   ];
 
   const memberItems = [
-    { label: 'Notifications', desc: unread > 0 ? `${unread} unread updates` : 'Payment and contribution updates', icon: <Bell size={17} />, screen: 'notifications' as const },
-    { label: 'My payment history', desc: 'Everything you have submitted', icon: <Receipt size={17} />, screen: 'payment-history' as const },
+    { label: 'Notification Settings', desc: unread > 0 ? `${unread} unread updates` : 'Payment and contribution updates', icon: <Bell size={17} />, screen: 'notifications' as const },
+    { label: 'Payment History', desc: 'Everything you have submitted', icon: <Receipt size={17} />, screen: 'payment-history' as const },
     { label: 'Financial history', desc: 'All group income and expenses', icon: <History size={17} />, screen: 'financial-history' as const },
     { label: 'Privacy notice', desc: 'What is shared and what stays private', icon: <Shield size={17} />, screen: 'privacy' as const },
-    { label: 'Edit my profile', desc: 'Name, phone number and photo', icon: <UserCog size={17} />, screen: 'profile-edit' as const },
+    { label: 'My Profile', desc: 'Name, phone number and photo', icon: <UserCog size={17} />, screen: 'profile-edit' as const },
   ];
 
   return (
@@ -53,22 +56,13 @@ export function MoreScreen() {
           <div className="min-w-0 flex-1">
             <p className="truncate text-[16px] font-extrabold">{session?.profile.full_name}</p>
             <p className="truncate text-[11.5px] text-navy-300">{session?.profile.email}</p>
+            <p className="text-[11px] font-semibold text-gold-400">{formatMemberId(session?.profile.id)}</p>
             <div className="mt-1 flex flex-wrap gap-1.5">
               <span className="pill bg-white/15 text-white">
                 {session?.role === 'admin' ? 'Administrator' : session?.role === 'treasurer' ? 'Treasurer' : 'Member'}
               </span>
               <span className="pill bg-[#1E9E63] text-white">Approved</span>
             </div>
-          </div>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-white/10 p-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-navy-200">My verified paid</p>
-            <p className="money text-[15px] font-extrabold">{formatGHS(mine.data?.total_verified_paid ?? 0)}</p>
-          </div>
-          <div className="rounded-xl bg-white/10 p-2.5">
-            <p className="text-[10px] uppercase tracking-wide text-navy-200">My outstanding</p>
-            <p className="money text-[15px] font-extrabold text-gold-300">{formatGHS(mine.data?.outstanding ?? 0)}</p>
           </div>
         </div>
       </header>
@@ -90,11 +84,24 @@ export function MoreScreen() {
           ))}
         </div>
 
+        <div className="card-flat mt-3 overflow-hidden bg-white">
+          <button type="button" onClick={() => setHelpOpen(true)} className="list-row">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-50 text-navy-700"><Bell size={17} /></span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-[13.5px] font-bold text-navy-950">Help &amp; Support</span><span className="block truncate text-[11.5px] text-slate-500">Contact the treasurer or administrator</span></span>
+            <ChevronRight size={17} className="shrink-0 text-slate-300" />
+          </button>
+          <button type="button" onClick={() => setAboutOpen(true)} className="list-row">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-navy-50 text-navy-700"><Shield size={17} /></span>
+            <span className="min-w-0 flex-1"><span className="block truncate text-[13.5px] font-bold text-navy-950">About App</span><span className="block truncate text-[11.5px] text-slate-500">Have R/C JHS 2022 · v1.0</span></span>
+            <ChevronRight size={17} className="shrink-0 text-slate-300" />
+          </button>
+        </div>
+
         {isAdmin ? (
           <div className="mt-5">
             <SectionHeader
-              title="Admin portal"
-              caption="Only administrators and treasurers can open these"
+              title="Admin Tools"
+              caption="Admin portal — only for Administrators"
               action={<SimplePill tone="info">{session?.role === 'admin' ? 'Admin' : 'Treasurer'}</SimplePill>}
             />
             <div className="card-flat overflow-hidden bg-white">
@@ -129,7 +136,7 @@ export function MoreScreen() {
               <Sparkles size={14} />
               Restore demo records
             </button>
-            <button type="button" onClick={logout} className="btn-danger btn-sm w-full" data-testid="logout-button">
+            <button type="button" onClick={logout} className="btn min-h-[48px] w-full border border-[#F0BFBF] bg-white font-bold text-[#B8392F]" data-testid="logout-button">
               <LogOut size={14} />
               Logout
             </button>
@@ -139,13 +146,24 @@ export function MoreScreen() {
           </div>
         </div>
 
-        <div className="mt-3">
-          <InfoNote>
-            This app records contributions and expenses. It is not a bank and does not hold money.
-            Always confirm the real balance with the treasurer.
-          </InfoNote>
-        </div>
+
       </div>
+
+      <Sheet open={helpOpen} title="Help & Support" onClose={() => setHelpOpen(false)}>
+        <div className="space-y-2 text-[13px] leading-relaxed text-slate-600">
+          <p><strong className="text-navy-950">Payment not verified yet?</strong> Give the treasurer the date, amount and transaction reference from Payment History.</p>
+          <p><strong className="text-navy-950">Wrong amount or period?</strong> Ask an administrator to correct it — records are corrected with an audit trail, never deleted silently.</p>
+          <p><strong className="text-navy-950">Forgot your password?</strong> Use “Forgot password?” on the Login screen.</p>
+          <p>For urgent matters, contact the treasurer.</p>
+        </div>
+      </Sheet>
+      <Sheet open={aboutOpen} title="About App" onClose={() => setAboutOpen(false)}>
+        <div className="space-y-2 text-[13px] leading-relaxed text-slate-600">
+          <p><strong className="text-navy-950">Have R/C JHS 2022 — Contribution &amp; Group Fund</strong></p>
+          <p>Stay connected. Track your contributions. Support our future.</p>
+          <p className="text-[12px] text-slate-400">Version 1.0</p>
+        </div>
+      </Sheet>
     </div>
   );
 }

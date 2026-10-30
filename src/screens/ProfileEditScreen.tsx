@@ -121,7 +121,7 @@ export function ProfileEditScreen() {
         </form>
 
         <div className="mt-5">
-          <SectionHeader title="Change password" caption="Keep your account secure" />
+          <SectionHeader title="Change password" />
           {pwError ? (
             <div className="mb-2">
               <Alert tone="error" onClose={() => setPwError(null)}>{pwError}</Alert>
