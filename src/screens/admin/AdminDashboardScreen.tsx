@@ -27,7 +27,7 @@ export function AdminDashboardScreen() {
   const summary = useServiceData<GroupFinancialSummary>(() => getGroupSummary());
   const pending = useServiceData<PaymentSubmission[]>(() => getPendingPayments());
   const members = useServiceData<AdminMemberRow[]>(() => getAdminMemberRows());
-  const activity = useServiceData<RecentActivityItem[]>(() => getRecentActivity(5));
+  const activity = useServiceData<RecentActivityItem[]>(() => getRecentActivity(3));
 
   const s = summary.data;
   const pendingMembers = (members.data ?? []).filter((m) => m.membership_status === 'pending');
@@ -45,26 +45,25 @@ export function AdminDashboardScreen() {
 
   return (
     <div className="app-shell">
-      <header className="sticky top-0 z-30 border-b border-[#E8EEF7] bg-white/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-30 bg-navy-900 px-4 py-3.5 text-white shadow-pop">
         <div className="flex items-center gap-2">
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gold-500 text-navy-950">
             <ShieldCheck size={18} />
           </span>
-          <div>
-            <h1 className="text-[17px] font-extrabold leading-tight text-navy-950">Admin Portal</h1>
-            <p className="text-[11.5px] leading-tight text-slate-500">
-              {session?.role === 'admin' ? 'Administrator' : 'Treasurer'} · {session?.profile.full_name}
-            </p>
+          <div className="min-w-0 flex-1">
+            <h1 className="text-[17px] font-extrabold leading-tight">Admin Dashboard</h1>
+            <p className="text-[11.5px] leading-tight text-navy-200">Admin Portal · {session?.profile.full_name}</p>
           </div>
+          <span className="pill shrink-0 bg-gold-500 text-navy-950">Admin</span>
         </div>
       </header>
 
       <div className="px-4 pt-4">
         <div className="grid grid-cols-2 gap-2.5">
           <StatCard label="Approved Members" value={`${s?.approved_members_count ?? 0}`} hint={`${pendingMembers.length} awaiting approval`} icon={<UserCheck size={16} />} tone="navy" onClick={() => navigate('admin-members')} />
-          <StatCard label="Verified Contributions" value={formatGHS(s?.total_verified_contributions_ghs ?? 0)} hint="From verified payments" icon={<HandCoins size={16} />} tone="green" onClick={() => navigate('admin-reports')} />
-          <StatCard label="Posted Expenses" value={formatGHS(s?.total_posted_expenses_ghs ?? 0)} hint="All posted expenses" icon={<TrendingDown size={16} />} tone="red" onClick={() => navigate('admin-expense-history')} />
-          <StatCard label="Recorded Balance" value={formatGHS(s?.current_recorded_balance_ghs ?? 0)} hint="Income − expenses" icon={<Wallet size={16} />} tone="gold" onClick={() => navigate('admin-reports')} />
+          <StatCard label="Total Contributions" value={formatGHS(s?.total_verified_contributions_ghs ?? 0)} hint="From verified payments" icon={<HandCoins size={16} />} tone="green" onClick={() => navigate('admin-reports')} />
+          <StatCard label="Total Expenses" value={formatGHS(s?.total_posted_expenses_ghs ?? 0)} hint="All posted expenses" icon={<TrendingDown size={16} />} tone="red" onClick={() => navigate('admin-expense-history')} />
+          <StatCard label="Current Balance" value={formatGHS(s?.current_recorded_balance_ghs ?? 0)} hint="Income − expenses" icon={<Wallet size={16} />} tone="gold" onClick={() => navigate('admin-reports')} />
         </div>
 
         <div className="mt-3 grid grid-cols-2 gap-2.5">
@@ -95,23 +94,12 @@ export function AdminDashboardScreen() {
         ) : null}
 
         <div className="mt-5">
-          <SectionHeader title="Admin menu" caption="Each tool does one job" />
-          <div className="card-flat overflow-hidden bg-white">
-            {menu.map((m) => (
-              <button key={m.label} type="button" onClick={() => navigate(m.screen)} className="list-row" data-testid={`admin-menu-${m.screen}`}>
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gold-100 text-[#8A5A08]">{m.icon}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[13.5px] font-bold text-navy-950">{m.label}</p>
-                  <p className="truncate text-[11.5px] text-slate-500">{m.desc}</p>
-                </div>
-                {m.badge ? (
-                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#B8392F] px-1.5 text-[10.5px] font-bold text-white">
-                    {m.badge}
-                  </span>
-                ) : null}
-                <ArrowRight size={16} className="shrink-0 text-slate-300" />
-              </button>
-            ))}
+          <SectionHeader title="Quick Actions" />
+          <div className="grid grid-cols-2 gap-2.5">
+            <button type="button" onClick={() => navigate('admin-members')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><Users size={16} /> Manage Members</button>
+            <button type="button" onClick={() => navigate('admin-review-payments')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><ClipboardCheck size={16} /> Review Payments</button>
+            <button type="button" onClick={() => navigate('admin-add-expense')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><HandCoins size={16} /> Add Expense</button>
+            <button type="button" onClick={() => navigate('admin-outstanding')} className="btn min-h-[52px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"><Bell size={16} /> Send Reminders</button>
           </div>
         </div>
 
@@ -136,16 +124,6 @@ export function AdminDashboardScreen() {
               ))
             )}
           </div>
-        </div>
-
-        <div className="mt-3 rounded-2xl border border-[#E8EEF7] bg-white p-3.5">
-          <p className="text-[12px] font-bold text-navy-950">Treasurer reminders</p>
-          <ul className="mt-1 space-y-1 text-[11.5px] leading-relaxed text-slate-500">
-            <li>• Verify payments the same day whenever you can — members see the change immediately.</li>
-            <li>• Attach a receipt to every expense; members trust what they can check.</li>
-            <li>• Never delete a wrong entry — correct or reverse it with a reason.</li>
-            <li>• Last app check: {formatDateShort(new Date().toISOString())}</li>
-          </ul>
         </div>
 
         <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">

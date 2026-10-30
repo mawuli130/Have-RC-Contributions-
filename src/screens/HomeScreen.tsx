@@ -1,42 +1,18 @@
 import React, { useMemo } from 'react';
-import {
-  ArrowDownLeft,
-  ArrowRight,
-  ArrowUpRight,
-  BadgeCheck,
-  Bell,
-  CalendarClock,
-  CircleDollarSign,
-  HandCoins,
-  Info,
-  TrendingDown,
-  Users,
-  Wallet,
-} from 'lucide-react';
-import {
-  Alert,
-  Avatar,
-  EmptyState,
-  InfoNote,
-  MiniStat,
-  SectionHeader,
-  StatCard,
-  StatusPill,
-} from '../components/ui';
+import { ArrowRight, BadgeCheck, Bell, CalendarClock, CircleDollarSign } from 'lucide-react';
+import { Avatar } from '../components/ui';
 import { useApp, useServiceData } from '../context/AppContext';
 import {
   getContributionRule,
+  getCurrentWeekOutstanding,
   getGroupSummary,
   getMyComputation,
+  getMyObligations,
   getNotifications,
-  getRecentActivity,
 } from '../services/databaseService';
-import { formatDateShort, formatGHS, formatSignedGHS } from '../utils/formatters';
-import type {
-  ContributionRule,
-  GroupFinancialSummary,
-  RecentActivityItem,
-} from '../types/database';
+import { Crest } from '../components/Crest';
+import { formatDateShort, formatGHS } from '../utils/formatters';
+import type { ContributionRule, GroupFinancialSummary } from '../types/database';
 import type { MemberComputation } from '../services/calculations';
 
 function greeting(): string {
@@ -46,12 +22,18 @@ function greeting(): string {
   return 'Good evening';
 }
 
+/**
+ * Compact dashboard — fits one Android screen (360×800) with the fixed
+ * bottom navigation. No page scroll: header, identity, 4 tiles, 2 actions,
+ * and a max-3 preview of who missed this week.
+ */
 export function HomeScreen() {
   const { session, navigate, switchTab } = useApp();
   const summary = useServiceData<GroupFinancialSummary>(() => getGroupSummary());
   const mine = useServiceData<MemberComputation | null>(() => getMyComputation());
   const rule = useServiceData<ContributionRule | null>(() => getContributionRule());
-  const activity = useServiceData<RecentActivityItem[]>(() => getRecentActivity(6));
+  const obligations = useServiceData(() => getMyObligations());
+  const week = useServiceData(() => getCurrentWeekOutstanding());
   const notifications = useServiceData(() => getNotifications());
 
   const unread = useMemo(
@@ -64,267 +46,191 @@ export function HomeScreen() {
   const m = mine.data;
   const r = rule.data;
   const scheduleActive = Boolean(r?.is_active && r.amount_ghs !== null);
-  const personalReminder =
-    m && scheduleActive && m.outstanding > 0
-      ? `Your outstanding balance is ${formatGHS(m.outstanding)} for ${m.relevant_period_label}. Please contact the treasurer once you have paid.`
-      : null;
+  const nextDue = (obligations.data ?? []).find((o) => o.status !== 'paid');
+  const thisWeekPaid = scheduleActive && (m?.current_period_outstanding_ghs ?? 1) <= 0;
+  const statusText = !scheduleActive
+    ? '—'
+    : m?.status_label === 'Not Yet Paid'
+      ? 'Not Paid'
+      : (m?.status_label ?? '—');
+  const missedCount = m ? m.periods_partially_paid + m.periods_not_yet_paid : 0;
+  const outstandingPeople = week.data?.members ?? [];
 
   return (
-    <div className="app-shell">
-      {/* Header */}
-      <header className="rounded-b-3xl bg-navy-900 px-4 pb-5 pt-5 text-white">
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gold-400">
-              Have R/C JHS 2022
-            </p>
-            <h1 className="mt-0.5 truncate text-[19px] font-extrabold leading-tight">
-              {greeting()}, {firstName}
-            </h1>
-            <p className="mt-0.5 text-[12px] text-navy-200">Old Students Contribution & Group Fund</p>
+    <div className="app-shell app-fixed flex flex-col" data-testid="home-screen">
+      {/* Compact navy header */}
+      <header className="shrink-0 bg-navy-900 px-4 pb-3 pt-3 text-white">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex min-w-0 items-center gap-2">
+            <Crest size={28} />
+            <p className="truncate text-[13px] font-extrabold leading-tight">Have R/C JHS 2022</p>
           </div>
           <button
             type="button"
             onClick={() => navigate('notifications')}
             aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white/10 active:scale-95"
+            className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 active:scale-95"
           >
-            <Bell size={19} />
+            <Bell size={17} />
             {unread > 0 ? (
-              <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold-500 px-1 text-[9.5px] font-extrabold text-navy-950">
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-gold-500 px-1 text-[9px] font-extrabold text-navy-950">
                 {unread}
               </span>
             ) : null}
           </button>
         </div>
-
-        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/10 p-3">
+        <div className="mt-2 flex items-end justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-navy-200">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-navy-300">
               Recorded group balance
             </p>
-            <p className="money mt-0.5 text-[24px] font-extrabold leading-tight">
+            <p className="money text-[20px] font-extrabold leading-tight">
               {formatGHS(s?.current_recorded_balance_ghs ?? 0)}
             </p>
           </div>
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold-500 text-navy-950">
-            <Wallet size={19} />
-          </span>
+          {scheduleActive ? (
+            <p className="shrink-0 rounded-full bg-white/10 px-2.5 py-1 text-[11px] font-bold text-gold-400">
+              {formatGHS(r?.amount_ghs ?? 0, false)} / {r?.frequency === 'weekly' ? 'week' : 'period'}
+            </p>
+          ) : null}
         </div>
-        <p className="mt-2 text-[11px] leading-snug text-navy-300">
-          Based on verified contributions and posted expenses only. This is a record of the fund, not a
-          bank or Mobile Money balance.
-        </p>
       </header>
 
-      <div className="px-4 pt-4">
-        {/* Personal reminder */}
-        {personalReminder ? (
-          <div className="mb-3">
-            <Alert tone="warning" title="Contribution reminder">
-              {personalReminder}
-            </Alert>
+      <div className="flex min-h-0 flex-1 flex-col px-4 pt-3">
+        <p className="shrink-0 truncate text-[17px] font-extrabold text-navy-950">
+          {greeting()}, {firstName} <span aria-hidden>👋</span>
+        </p>
+
+        {/* Identity */}
+        <div className="mt-2 flex shrink-0 items-center gap-2.5 rounded-[18px] border border-[#E3ECF7] bg-white p-2.5 shadow-card">
+          <Avatar name={session?.profile.full_name ?? 'Member'} src={session?.profile.avatar_url} size={40} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[14px] font-extrabold leading-tight text-navy-950">
+              {session?.profile.full_name}
+            </p>
+            <p className="text-[11px] leading-tight text-slate-500">
+              {session?.role === 'admin' ? 'Admin' : session?.role === 'treasurer' ? 'Treasurer' : 'Member'}
+              {m?.current_period_label ? ` · ${m.current_period_label.split('·')[0]}` : ''}
+            </p>
           </div>
-        ) : null}
+          <span className={`pill shrink-0 ${thisWeekPaid ? 'pill-paid' : 'pill-partial'}`}>
+            {scheduleActive ? (thisWeekPaid ? 'Paid' : 'Not paid') : '—'}
+          </span>
+        </div>
 
         {!scheduleActive ? (
-          <div className="mb-3">
-            <Alert tone="info" title="Contribution schedule not yet available">
-              The group has not yet set the contribution amount. No one has been charged yet. Once the
-              treasurer activates the agreed amount, your schedule and balance will appear here.
-            </Alert>
-          </div>
+          <p className="mt-2 shrink-0 rounded-[18px] bg-navy-50 px-3 py-2.5 text-[13px] font-semibold text-navy-800">
+            Schedule not yet available.
+          </p>
         ) : null}
 
-        {/* Group financial summary */}
-        <SectionHeader
-          title="Group financial summary"
-          caption="Calculated live from verified records"
-        />
-        <div className="grid grid-cols-2 gap-2.5">
-          <StatCard
-            label="Total Contributions"
-            value={formatGHS(s?.total_verified_contributions_ghs ?? 0)}
-            hint="Verified payments only"
-            icon={<HandCoins size={16} />}
-            tone="green"
-            onClick={() => switchTab('contributions')}
-          />
-          <StatCard
-            label="Total Expenses"
-            value={formatGHS(s?.total_posted_expenses_ghs ?? 0)}
-            hint="Posted expenses"
-            icon={<TrendingDown size={16} />}
-            tone="red"
-            onClick={() => switchTab('fund')}
-          />
-          <StatCard
-            label="Current Group Balance"
-            value={formatGHS(s?.current_recorded_balance_ghs ?? 0)}
-            hint="Income − expenses"
-            icon={<Wallet size={16} />}
-            tone="navy"
-            onClick={() => switchTab('fund')}
-          />
-          <StatCard
-            label="Members Yet to Pay"
-            value={`${s?.members_yet_to_pay_count ?? 0}`}
-            hint={`of ${s?.approved_members_count ?? 0} approved members`}
-            icon={<Users size={16} />}
-            tone="gold"
-            onClick={() => switchTab('members')}
-          />
-        </div>
-
-        {/* Personal summary */}
-        <div className="mt-5">
-          <SectionHeader
-            title="My contribution summary"
-            caption={scheduleActive ? (r?.title ?? '') : 'Schedule not set yet'}
-          />
-          <div className="card">
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <Avatar name={session?.profile.full_name ?? 'Member'} src={session?.profile.avatar_url} size={40} />
-                <div className="min-w-0">
-                  <p className="truncate text-[14px] font-bold text-navy-950">
-                    {session?.profile.full_name}
-                  </p>
-                  <p className="text-[11.5px] text-slate-500">
-                    {m?.has_schedule
-                      ? `${m.periods_fully_paid} of ${m.periods_fully_paid + m.periods_partially_paid + m.periods_not_yet_paid} periods fully paid`
-                      : 'No periods scheduled yet'}
-                  </p>
-                </div>
-              </div>
-              <StatusPill status={m?.status_label ?? 'Schedule Not Set'} />
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <MiniStat label="My Total Paid" value={formatGHS(m?.total_verified_paid ?? 0)} tone="text-[#137447]" />
-              <MiniStat
-                label="My Outstanding"
-                value={formatGHS(m?.outstanding ?? 0)}
-                tone={(m?.outstanding ?? 0) > 0 ? 'text-[#A82B2B]' : 'text-[#137447]'}
-              />
-              <MiniStat
-                label="My Latest Payment"
-                value={
-                  m?.latest_verified_amount != null
-                    ? formatGHS(m.latest_verified_amount)
-                    : 'No payment yet'
-                }
-              />
-              <MiniStat
-                label="Latest Payment Date"
-                value={m?.latest_verified_date ? formatDateShort(m.latest_verified_date) : '—'}
-              />
-            </div>
-
-            <p className="mt-2.5 flex items-start gap-1.5 text-[11.5px] leading-relaxed text-slate-500">
-              <CalendarClock size={13} className="mt-0.5 shrink-0 text-navy-400" />
-              {m?.has_schedule
-                ? `Relevant period: ${m.relevant_period_label}. ${m.pending_count > 0 ? `You have ${m.pending_count} payment awaiting verification.` : 'Payments count once the treasurer verifies them.'}`
-                : 'Your payment schedule will appear as soon as the contribution amount is set and activated.'}
+        {/* 4 compact tiles */}
+        <div className="mt-2.5 grid shrink-0 grid-cols-2 gap-2">
+          <div className="rounded-[18px] bg-[#1E9E63] p-2.5 text-white shadow-card">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/85">
+              <CircleDollarSign size={12} /> Total Paid
             </p>
-
-            <div className="mt-3 flex gap-2">
-              <button type="button" onClick={() => navigate('submit-payment')} className="btn-gold flex-1" data-testid="home-submit-payment">
-                <CircleDollarSign size={16} />
-                Submit payment
-              </button>
-              <button type="button" onClick={() => switchTab('contributions')} className="btn-outline flex-1">
-                My records
-              </button>
-            </div>
+            <p className="money mt-0.5 truncate text-[19px] font-extrabold leading-tight">
+              {formatGHS(m?.total_verified_paid ?? 0)}
+            </p>
+            <p className="text-[10px] leading-tight text-white/85">{m?.periods_fully_paid ?? 0} paid</p>
+          </div>
+          <div className="rounded-[18px] bg-[#F59E0B] p-2.5 text-white shadow-card">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/90">
+              <CalendarClock size={12} /> Outstanding
+            </p>
+            <p className="money mt-0.5 truncate text-[19px] font-extrabold leading-tight">
+              {formatGHS(m?.overdue_outstanding_ghs ?? 0)}
+            </p>
+            <p className="text-[10px] leading-tight text-white/90">{missedCount} missed</p>
+          </div>
+          <div className="rounded-[18px] border border-[#E3ECF7] bg-white p-2.5 shadow-card">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Next Due Date</p>
+            <p className="mt-0.5 truncate text-[16px] font-extrabold leading-tight text-navy-950">
+              {nextDue ? formatDateShort(nextDue.due_date) : scheduleActive ? 'Paid up' : '—'}
+            </p>
+            <p className="truncate text-[10px] leading-tight text-slate-500">
+              {nextDue ? nextDue.period_label.split('·')[0] : ' '}
+            </p>
+          </div>
+          <div className="rounded-[18px] bg-[#7C3AED] p-2.5 text-white shadow-card">
+            <p className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-white/85">
+              <BadgeCheck size={12} /> Payment Status
+            </p>
+            <p className="mt-0.5 truncate text-[16px] font-extrabold leading-tight">{statusText}</p>
+            <p className="truncate text-[10px] leading-tight text-white/85">
+              {m?.current_period_label?.split('·')[0] ?? ' '}
+            </p>
           </div>
         </div>
 
-        {/* Recent activity */}
-        <div className="mt-5">
-          <SectionHeader
-            title="Recent activity"
-            caption="Privacy-safe group updates"
-            action={
+        {/* Quick actions */}
+        <div className="mt-2.5 grid shrink-0 grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => navigate('submit-payment')}
+            className="btn-primary min-h-[48px]"
+            data-testid="home-submit-payment"
+          >
+            <CircleDollarSign size={17} /> Submit Payment
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('payment-history')}
+            className="btn min-h-[48px] border border-[#D8E2F0] bg-[#EAF1FB] font-bold text-navy-800"
+          >
+            Payment History
+          </button>
+        </div>
+
+        {/* Who missed this week — preview only (full list in Members) */}
+        {scheduleActive ? (
+          <div className="mt-3 flex min-h-0 flex-1 flex-col">
+            <div className="mb-1.5 flex shrink-0 items-center justify-between gap-3">
+              <h2 className="truncate text-[15px] font-bold text-navy-950">
+                {week.data?.is_ended ? 'Outstanding' : 'Not paid'} ·{' '}
+                {week.data?.period_label?.split('·')[0]?.trim() ?? 'This week'}
+              </h2>
               <button
                 type="button"
-                onClick={() => navigate('financial-history')}
-                className="flex items-center gap-0.5 text-[12.5px] font-bold text-navy-700"
+                onClick={() => switchTab('members')}
+                className="flex shrink-0 items-center gap-0.5 text-[12px] font-bold text-navy-700"
               >
-                See all <ArrowRight size={14} />
+                See all <ArrowRight size={13} />
               </button>
-            }
-          />
-          <div className="card-flat overflow-hidden bg-white">
-            {(activity.data ?? []).length === 0 ? (
-              <EmptyState
-                icon={<Info size={22} />}
-                title="No activity yet"
-                description="Verified contributions and posted expenses will appear here in date order."
-              />
-            ) : (
-              <ul>
-                {(activity.data ?? []).map((item) => (
-                  <li key={item.id} className="list-row">
-                    <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
-                        item.is_positive === true
-                          ? 'bg-[#E4F6EC] text-[#137447]'
-                          : item.is_positive === false
-                            ? 'bg-[#FDECEC] text-[#A82B2B]'
-                            : 'bg-navy-50 text-navy-600'
-                      }`}
-                    >
-                      {item.is_positive === true ? (
-                        <ArrowDownLeft size={16} />
-                      ) : item.is_positive === false ? (
-                        <ArrowUpRight size={16} />
-                      ) : (
-                        <BadgeCheck size={16} />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-bold text-navy-950">{item.title}</p>
-                      <p className="line-clamp-2 text-[11.5px] leading-snug text-slate-500">
-                        {item.description}
-                      </p>
-                      <p className="mt-0.5 text-[10.5px] font-medium uppercase tracking-wide text-slate-400">
-                        {item.date_label}
-                      </p>
-                    </div>
-                    {item.amount_ghs != null ? (
-                      <span
-                        className={`money shrink-0 text-[13px] font-extrabold ${
-                          item.is_positive ? 'text-[#137447]' : 'text-[#A82B2B]'
-                        }`}
+            </div>
+            <div className="card-flat shrink-0 overflow-hidden bg-white">
+              {outstandingPeople.length === 0 ? (
+                <p className="px-4 py-3 text-[13px] font-bold text-[#137447]">All paid ✓</p>
+              ) : (
+                <ul>
+                  {outstandingPeople.slice(0, 3).map((person) => (
+                    <li key={person.member_id}>
+                      <button
+                        type="button"
+                        onClick={() => navigate('member-detail', { id: person.member_id })}
+                        className="flex w-full items-center gap-2.5 border-b border-[#EDF2F9] px-3 py-2 text-left last:border-b-0"
                       >
-                        {item.is_positive ? '+' : '−'}
-                        {formatGHS(item.amount_ghs)}
-                      </span>
-                    ) : null}
-                  </li>
-                ))}
-              </ul>
-            )}
+                        <Avatar name={person.full_name} src={person.avatar_url} size={34} />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-[13px] font-bold text-navy-950">
+                            {person.full_name}
+                          </span>
+                          <span className="block text-[10.5px] leading-tight text-slate-500">
+                            Ends {formatDateShort(week.data?.due_date)}
+                          </span>
+                        </span>
+                        <span className="money shrink-0 text-[13px] font-extrabold text-[#A82B2B]">
+                          {formatGHS(person.outstanding_ghs)}
+                        </span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
-          <div className="mt-2">
-            <InfoNote>
-              Activity entries never show receipts, transaction references or private contact details.
-            </InfoNote>
-          </div>
-        </div>
-
-        <div className="mt-5 rounded-2xl border border-[#E8EEF7] bg-white p-3.5">
-          <p className="text-[12.5px] font-bold text-navy-950">How the balance is worked out</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-            Current Recorded Balance = Total Recorded Income − Total Posted Expenses − Other Recorded
-            Outflows. Pending payments are never counted, and each expense is subtracted exactly once.
-          </p>
-          <p className="mt-1.5 text-[11.5px] leading-relaxed text-slate-400">
-            Last calculated: {formatDateShort(new Date().toISOString())} · Signed amounts:{' '}
-            <span className="money">{formatSignedGHS(s?.current_recorded_balance_ghs ?? 0)}</span>
-          </p>
-        </div>
+        ) : null}
       </div>
     </div>
   );

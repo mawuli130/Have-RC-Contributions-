@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
+  Camera,
   Check,
   CheckCircle2,
   ChevronRight,
@@ -357,21 +358,21 @@ export function ScreenHeader({
   right?: React.ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-30 border-b border-[#E8EEF7] bg-white/95 backdrop-blur">
-      <div className="flex items-center gap-2 px-4 py-3">
+    <header className="sticky top-0 z-30 bg-navy-900 text-white shadow-[0_4px_18px_rgba(7,31,66,0.25)]">
+      <div className="flex items-center gap-2 px-4 py-3.5">
         {onBack ? (
           <button
             type="button"
             onClick={onBack}
             aria-label="Go back"
-            className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-navy-800 hover:bg-navy-50"
+            className="-ml-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-white hover:bg-white/10 active:scale-95"
           >
             <ChevronRight size={22} className="rotate-180" />
           </button>
         ) : null}
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-[17px] font-extrabold leading-tight text-navy-950">{title}</h1>
-          {subtitle ? <p className="truncate text-[12px] leading-tight text-slate-500">{subtitle}</p> : null}
+          <h1 className="truncate text-[17px] font-extrabold leading-tight text-white">{title}</h1>
+          {subtitle ? <p className="truncate text-[12px] leading-tight text-navy-200">{subtitle}</p> : null}
         </div>
         {right}
       </div>
@@ -488,9 +489,13 @@ export function FilePicker({
         <button
           type="button"
           onClick={() => inputRef.current?.click()}
-          className="flex min-h-[50px] w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-[#C7D6EA] bg-white px-3 py-3 text-[13.5px] font-semibold text-navy-700"
+          className="flex min-h-[104px] w-full flex-col items-center justify-center gap-1.5 rounded-2xl border-2 border-dashed border-[#B9D2F0] bg-[#F7FAFE] px-3 py-4 text-center active:scale-[0.99]"
         >
-          Choose file
+          <span className="flex h-11 w-11 items-center justify-center rounded-full bg-navy-900 text-gold-400">
+            <Camera size={20} aria-hidden />
+          </span>
+          <span className="text-[13.5px] font-bold text-navy-800">Tap to upload screenshot</span>
+          <span className="text-[11px] font-medium text-slate-400">(JPG, PNG)</span>
         </button>
       )}
       {hint ? <p className="field-help">{hint}</p> : null}

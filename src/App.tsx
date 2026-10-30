@@ -14,6 +14,7 @@ import { MoreScreen } from './screens/MoreScreen';
 import { SubmitPaymentScreen } from './screens/SubmitPaymentScreen';
 import { PaymentHistoryScreen } from './screens/PaymentHistoryScreen';
 import { FinancialHistoryScreen } from './screens/FinancialHistoryScreen';
+import { ExpensesScreen } from './screens/ExpensesScreen';
 import { ExpenseDetailScreen } from './screens/ExpenseDetailScreen';
 import { ExpenseEditScreen } from './screens/ExpenseEditScreen';
 import { NotificationsScreen } from './screens/NotificationsScreen';
@@ -133,6 +134,8 @@ function ScreenRouter() {
         return <SubmitPaymentScreen />;
       case 'payment-history':
         return <PaymentHistoryScreen />;
+      case 'expenses':
+        return <ExpensesScreen />;
       case 'financial-history':
         return <FinancialHistoryScreen />;
       case 'expense-detail':

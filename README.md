@@ -97,3 +97,20 @@ docs/                         Setup, deployment, member and admin guides
 ## Privacy in one sentence
 
 Approved members can see each other's **name, verified paid total, outstanding balance and payment status**; everything else — receipts, transaction references, emails, phone numbers and notes — stays private to the member and the authorised treasurer.
+
+---
+
+## UI reference fidelity
+
+The app implements the 15-screen reference collage screen-by-screen
+(navy `#0B3570` + gold `#FFC400`, crest, bottom navigation, status pills).
+See [`docs/UI_REFERENCE.md`](docs/UI_REFERENCE.md) for the screen-by-screen
+map, design tokens, the admin-only expense rule, and remaining limitations.
+
+### Weekly payments (default)
+
+The admin sets the amount (e.g. **GH₵10**), how often (**every week** by
+default, or every 2 weeks / monthly), the first week, and for how many weeks.
+Members pay within the week; a missed week becomes **Outstanding** with a
+notification. Every dashboard shows only: *We have*, *Outstanding*, *You
+paid*, this week, and who missed that week.

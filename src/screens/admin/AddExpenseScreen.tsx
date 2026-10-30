@@ -128,12 +128,12 @@ export function AddExpenseScreen() {
 
         <form onSubmit={review} className="mt-3 space-y-3.5">
           <div>
-            <label className="label" htmlFor="exp-title">Expense title</label>
-            <input id="exp-title" className="input" placeholder="e.g. Funeral Support" value={title} onChange={(e) => setTitle(e.target.value)} required data-testid="expense-title" />
+            <label className="label" htmlFor="exp-title">Expense Title *</label>
+            <input id="exp-title" className="input" placeholder="e.g. Printing & Stationery" value={title} onChange={(e) => setTitle(e.target.value)} required data-testid="expense-title" />
           </div>
 
           <div>
-            <label className="label" htmlFor="exp-amount">Amount (GHS)</label>
+            <label className="label" htmlFor="exp-amount">Amount (GH₵) *</label>
             <input
               id="exp-amount"
               type="number"
@@ -150,23 +150,23 @@ export function AddExpenseScreen() {
           </div>
 
           <div>
-            <label className="label" htmlFor="exp-reason">Reason / description</label>
+            <label className="label" htmlFor="exp-reason">Reason *</label>
             <textarea
               id="exp-reason"
               className="input min-h-[80px]"
-              placeholder="e.g. Contribution towards a former classmate's family funeral."
+              placeholder="e.g. Meeting refreshments"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               maxLength={300}
               required
               data-testid="expense-reason"
             />
-            <p className="field-help">Members will see this explanation. Keep it clear and factual.</p>
+            
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="label" htmlFor="exp-date">Date paid</label>
+              <label className="label" htmlFor="exp-date">Date *</label>
               <input id="exp-date" type="date" className="input" value={expenseDate} max={todayISO()} onChange={(e) => setExpenseDate(e.target.value)} required data-testid="expense-date" />
             </div>
             <div>
@@ -187,7 +187,7 @@ export function AddExpenseScreen() {
           </div>
 
           <FilePicker
-            label="Receipt or evidence (optional)"
+            label="Receipt / Screenshot (optional)"
             hint="Photo, screenshot or PDF smaller than 3 MB. Visible to approved members."
             value={evidence}
             onChange={setEvidence}
@@ -230,28 +230,14 @@ export function AddExpenseScreen() {
 
           <div className="flex items-start gap-2 rounded-xl bg-[#F7FAFE] p-3">
             <AlertTriangle size={15} className="mt-0.5 shrink-0 text-navy-500" />
-            <p className="text-[11.5px] leading-relaxed text-slate-600">
-              After saving, this expense is added to the ledger, total expenses update, and the recorded
-              balance decreases exactly once. Posted expenses cannot be deleted — only corrected through
-              an audited reversal.
-            </p>
+            <p className="text-[11.5px] font-semibold text-slate-600">Balance reduces by this amount once.</p>
           </div>
 
-          <button type="submit" className="btn-gold" data-testid="expense-review">
+          <button type="submit" className="btn-primary min-h-[52px]" data-testid="expense-review">
             <Receipt size={16} />
-            Review expense
+            Save Expense
           </button>
         </form>
-
-        <div className="mt-4">
-          <SectionHeader title="Example entry" caption="For reference" />
-          <div className="card-flat bg-white p-3 text-[12px] text-slate-600">
-            <p><strong className="text-navy-950">Title:</strong> Funeral Support</p>
-            <p><strong className="text-navy-950">Amount:</strong> GH₵250.00</p>
-            <p><strong className="text-navy-950">Reason:</strong> Contribution towards a former classmate&apos;s family funeral.</p>
-            <p><strong className="text-navy-950">Evidence:</strong> Receipt or payment screenshot</p>
-          </div>
-        </div>
       </div>
 
       <ConfirmDialog

@@ -36,7 +36,7 @@ export function ExpenseDetailScreen({ expenseId }: { expenseId: string }) {
       <div className="app-shell">
         <ScreenHeader title="Expense" onBack={goBack} />
         <div className="px-4 pt-4">
-          <EmptyState icon={<Receipt size={22} />} title="Expense not found" description="This expense record is not available." />
+          <EmptyState icon={<Receipt size={22} />} title="Expense not found" description="" />
         </div>
       </div>
     );
@@ -116,7 +116,7 @@ export function ExpenseDetailScreen({ expenseId }: { expenseId: string }) {
 
         {expense.adjustments.length > 0 ? (
           <div className="mt-3">
-            <SectionHeader title="Correction history" caption="Audited — nothing was deleted" />
+            <SectionHeader title="Corrections" />
             <div className="card space-y-2.5">
               {expense.adjustments.map((a) => (
                 <div key={a.id} className="border-b border-[#F1F5FA] pb-2 last:border-b-0 last:pb-0">
@@ -173,20 +173,7 @@ export function ExpenseDetailScreen({ expenseId }: { expenseId: string }) {
           </div>
         </div>
 
-        <div className="mt-3">
-          <InfoNote>
-            Every approved member can see posted expenses. Editing is limited to authorised
-            administrators and every change keeps the original record for auditing.
-          </InfoNote>
-        </div>
 
-        <div className="mt-2 flex items-start gap-2 rounded-2xl bg-white p-3.5 border border-[#E8EEF7]">
-          <ShieldCheck size={15} className="mt-0.5 shrink-0 text-navy-500" />
-          <p className="text-[12px] leading-relaxed text-slate-500">
-            Posted financial records can never be quietly deleted — the database blocks deletion and
-            requires a documented reversal instead.
-          </p>
-        </div>
 
         <div className="mt-2 flex items-center gap-1.5 justify-center text-[11px] text-slate-400">
           <Info size={12} /> Expense ID: {expense.id.slice(-8).toUpperCase()}

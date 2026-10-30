@@ -10,6 +10,9 @@ import {
   approveMember,
   changeMyPassword,
   getAdminMemberRows,
+  getContributionRule,
+  getCurrentWeekOutstanding,
+  getNotifications,
   getAllPayments,
   getAuditLogs,
   getExpenseEvidence,
@@ -329,13 +332,16 @@ describe('5. Obligation generation', () => {
     const approvedCount = loadState().users.filter((u) => u.membership_status === 'approved').length;
 
     // Re-saving the same active rule must not duplicate anything
+    const seeded = loadState().contribution_rules[0];
     saveContributionRule({
-      title: 'Have R/C JHS 2022 Monthly Contribution',
-      amountGhs: 100,
-      frequency: 'monthly',
-      startDate: loadState().contribution_rules[0].start_date as string,
-      dueDay: 28,
-      gracePeriodDays: 5,
+      title: seeded.title,
+      amountGhs: seeded.amount_ghs,
+      frequency: seeded.frequency,
+      everyWeeks: seeded.every_weeks ?? 1,
+      durationPeriods: seeded.duration_periods ?? null,
+      startDate: seeded.start_date as string,
+      dueDay: seeded.due_day,
+      gracePeriodDays: seeded.grace_period_days,
       isActive: true,
       momoNumber: '024 411 2200',
       momoName: 'Kofi Asante (Treasurer)',
@@ -466,23 +472,23 @@ describe('6. Payments stay pending until verified', () => {
 describe('7. Verification updates balances and income exactly once', () => {
   it('increases the member total, group income and the ledger by exactly the paid amount', () => {
     signIn('ama@example.com', SEED_PASSWORD);
-    const payment = submitPayment({ amountGhs: 150, paymentDate: todayISO(), paymentMethod: 'Mobile Money' });
+    const payment = submitPayment({ amountGhs: 25, paymentDate: todayISO(), paymentMethod: 'Mobile Money' });
     const balanceBefore = getGroupSummary().current_recorded_balance_ghs;
 
     signIn('treasurer@have2022.org', SEED_PASSWORD);
     verifyPayment(payment.id);
 
     const summary = getGroupSummary();
-    expect(summary.current_recorded_balance_ghs).toBe(balanceBefore + 150);
-    expect(summary.total_verified_contributions_ghs).toBeGreaterThanOrEqual(150);
+    expect(summary.current_recorded_balance_ghs).toBe(balanceBefore + 25);
+    expect(summary.total_verified_contributions_ghs).toBeGreaterThanOrEqual(25);
 
     const ledgerRows = getLedgerEntries().filter((e) => e.source_payment_id === payment.id);
     expect(ledgerRows).toHaveLength(1);
-    expect(ledgerRows[0].signed_amount_ghs).toBe(150);
+    expect(ledgerRows[0].signed_amount_ghs).toBe(25);
 
     signIn('ama@example.com', SEED_PASSWORD);
     const mine = getMyComputation()!;
-    expect(mine.total_verified_paid).toBe(150);
+    expect(mine.total_verified_paid).toBe(25);
     expect(getMyPayments().find((p) => p.id === payment.id)?.status).toBe('verified');
   });
 
@@ -530,13 +536,13 @@ describe('7. Verification updates balances and income exactly once', () => {
 
   it('supports partial payments across periods', () => {
     signIn('ama@example.com', SEED_PASSWORD);
-    const payment = submitPayment({ amountGhs: 40, paymentDate: todayISO(), paymentMethod: 'Cash' });
+    const payment = submitPayment({ amountGhs: 15, paymentDate: todayISO(), paymentMethod: 'Cash' });
     signIn('treasurer@have2022.org', SEED_PASSWORD);
     verifyPayment(payment.id);
     signIn('ama@example.com', SEED_PASSWORD);
     const mine = getMyComputation()!;
-    expect(mine.total_verified_paid).toBe(40);
-    expect(mine.outstanding).toBe(mine.total_due - 40);
+    expect(mine.total_verified_paid).toBe(15);
+    expect(mine.outstanding).toBe(mine.total_due - 15);
     expect(mine.periods_partially_paid).toBeGreaterThanOrEqual(1);
   });
 });
@@ -1244,5 +1250,121 @@ describe('Demo seed integrity', () => {
       expect(err).toBeInstanceOf(ServiceError);
       expect((err as ServiceError).code).toBe('invalid');
     }
+  });
+});
+
+/* ================================================================== */
+/* 21. Weekly plan set by admin (GH₵10/week default)                   */
+/* ================================================================== */
+
+describe('21. Weekly plan set by admin', () => {
+  function daysAgo(n: number): string {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function blankWithTwoMembers() {
+    resetToBlank();
+    const state = loadState();
+    const now = new Date().toISOString();
+    state.users.push(
+      {
+        id: 'u_admin', email: 'boss@example.com', password_hash: 'x', full_name: 'Boss Admin',
+        phone: null, avatar_url: null, membership_status: 'approved', role: 'admin',
+        privacy_accepted_at: now, approved_by: null, approved_at: now, created_at: now, updated_at: now,
+      } as never,
+      {
+        id: 'u_m1', email: 'm1@example.com', password_hash: 'x', full_name: 'Member One',
+        phone: null, avatar_url: null, membership_status: 'approved', role: 'member',
+        privacy_accepted_at: now, approved_by: null, approved_at: now, created_at: now, updated_at: now,
+      } as never
+    );
+    state.session_user_id = 'u_admin';
+    window.localStorage.setItem('have_rc_jhs_2022_fund_db_v1', JSON.stringify(state));
+    invalidateCache();
+  }
+
+  it('creates Week 1, Week 2, Week 3 from the admin start date, due on the last day', () => {
+    blankWithTwoMembers();
+    const start = daysAgo(15); // Week 1 and 2 have ended, Week 3 is now
+    const result = saveContributionRule({
+      title: 'Weekly Contribution', amountGhs: 10, frequency: 'weekly', everyWeeks: 1,
+      durationPeriods: 4, startDate: start, dueDay: 7, gracePeriodDays: 0,
+      isActive: true, momoNumber: '024', momoName: 'Fund',
+    });
+    expect(result.periodsCreated).toBe(3);
+    const periods = loadState().contribution_periods;
+    expect(periods.map((x) => x.period_label.split('·')[0].trim())).toEqual(['Week 1', 'Week 2', 'Week 3']);
+    expect(periods[0].due_date).toBe(daysAgo(9)); // start + 6 days
+    expect(loadState().obligations).toHaveLength(6); // 2 members x 3 weeks
+
+    const mine = getMyComputation()!;
+    expect(mine.current_period_label).toContain('Week 3');
+    expect(mine.current_period_outstanding_ghs).toBe(10);
+    expect(mine.overdue_outstanding_ghs).toBe(20); // Week 1 + Week 2 missed
+
+    const week = getCurrentWeekOutstanding()!;
+    expect(week.is_ended).toBe(true);
+    expect(week.period_label).toContain('Week 2');
+    expect(week.members.map((m) => m.full_name)).toEqual(['Boss Admin', 'Member One']);
+    expect(week.members[0].outstanding_ghs).toBe(10);
+  });
+
+  it('sends one outstanding notification for each missed week, only once', () => {
+    blankWithTwoMembers();
+    saveContributionRule({
+      title: 'Weekly Contribution', amountGhs: 10, frequency: 'weekly', everyWeeks: 1,
+      durationPeriods: 4, startDate: daysAgo(15), dueDay: 7, gracePeriodDays: 0,
+      isActive: true, momoNumber: '024', momoName: 'Fund',
+    });
+    const first = getNotifications().filter((n) => n.type === 'outstanding_reminder');
+    expect(first).toHaveLength(2); // Week 1 + Week 2
+    expect(first[0].message).toContain('GH₵');
+    getNotifications();
+    getMyComputation();
+    const again = getNotifications().filter((n) => n.type === 'outstanding_reminder');
+    expect(again).toHaveLength(2); // no duplicates
+  });
+
+  it('supports every 2 weeks and stops at the admin duration', () => {
+    blankWithTwoMembers();
+    const twoWeekly = saveContributionRule({
+      title: 'Weekly Contribution', amountGhs: 10, frequency: 'weekly', everyWeeks: 2,
+      durationPeriods: 3, startDate: daysAgo(20), dueDay: 7, gracePeriodDays: 0,
+      isActive: true, momoNumber: '024', momoName: 'Fund',
+    });
+    expect(twoWeekly.periodsCreated).toBe(2); // days -20 to -7, then -6 to +7
+    expect(loadState().contribution_periods[0].period_label).toContain('Period 1');
+
+    blankWithTwoMembers();
+    const stopped = saveContributionRule({
+      title: 'Weekly Contribution', amountGhs: 10, frequency: 'weekly', everyWeeks: 1,
+      durationPeriods: 2, startDate: daysAgo(30), dueDay: 7, gracePeriodDays: 0,
+      isActive: true, momoNumber: '024', momoName: 'Fund',
+    });
+    expect(stopped.periodsCreated).toBe(2); // duration reached, no Week 3+
+    expect(getContributionRule()?.duration_periods).toBe(2);
+  });
+
+  it('starts the new week by itself when time passes', () => {
+    blankWithTwoMembers();
+    saveContributionRule({
+      title: 'Weekly Contribution', amountGhs: 10, frequency: 'weekly', everyWeeks: 1,
+      durationPeriods: 4, startDate: daysAgo(8), dueDay: 7, gracePeriodDays: 0,
+      isActive: true, momoNumber: '024', momoName: 'Fund',
+    });
+    expect(loadState().contribution_periods).toHaveLength(2);
+    // Pretend Week 2 was never created (e.g. nobody opened the app that week)
+    const state = loadState();
+    const week2 = state.contribution_periods[1];
+    state.contribution_periods = state.contribution_periods.filter((x) => x.id !== week2.id);
+    state.obligations = state.obligations.filter((o) => o.period_id !== week2.id);
+    window.localStorage.setItem('have_rc_jhs_2022_fund_db_v1', JSON.stringify(state));
+    invalidateCache();
+
+    getContributionRule(); // opening the app syncs the schedule
+    expect(loadState().contribution_periods).toHaveLength(2);
+    expect(loadState().contribution_periods[1].period_label).toContain('Week 2');
   });
 });

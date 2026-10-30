@@ -51,6 +51,10 @@ export interface ContributionRule {
   title: string;
   amount_ghs: number | null; // Null when unset!
   frequency: PaymentFrequency;
+  /** Weeks between payments when frequency is weekly. 1 = every week (default), 2 = every 2 weeks. */
+  every_weeks?: number;
+  /** Total number of payment periods/weeks. null/undefined = no end, until admin stops it. */
+  duration_periods?: number | null;
   start_date: string | null;
   due_day: number;
   grace_period_days: number;
@@ -241,6 +245,12 @@ export interface PublicMemberPaymentSummary {
   latest_verified_payment_amount_ghs: number | null;
   payment_status: PublicPaymentStatusLabel;
   relevant_period_label: string;
+  /** Unpaid amount from weeks/periods that have already ended. */
+  overdue_outstanding_ghs: number;
+  current_period_label: string;
+  current_period_outstanding_ghs: number;
+  latest_ended_period_label: string;
+  latest_ended_outstanding_ghs: number;
 }
 
 export interface GroupFinancialSummary {

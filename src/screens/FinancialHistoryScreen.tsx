@@ -3,7 +3,7 @@ import { ArrowDownLeft, ArrowUpRight, Filter, History, SlidersHorizontal } from 
 import { EmptyState, InfoNote, ScreenHeader, SectionHeader, SimplePill } from '../components/ui';
 import { useApp, useServiceData } from '../context/AppContext';
 import { getLedgerEntries } from '../services/databaseService';
-import { formatDateShort, formatGHS } from '../utils/formatters';
+import { formatDateShort, formatGHS, formatPaymentLine, shortActivityTitle } from '../utils/formatters';
 import type { FinancialLedgerEntry } from '../types/database';
 
 type TypeFilter = 'all' | 'income' | 'expense';
@@ -55,8 +55,8 @@ export function FinancialHistoryScreen() {
   return (
     <div className="app-shell">
       <ScreenHeader
-        title="Financial history"
-        subtitle="Contributions and expenses in date order"
+        title="Financial Activity"
+        subtitle="Financial history · Contributions and expenses in date order"
         onBack={goBack}
       />
       <div className="px-4 pt-3">
@@ -79,7 +79,7 @@ export function FinancialHistoryScreen() {
           {(
             [
               { key: 'all', label: 'All' },
-              { key: 'income', label: 'Income' },
+              { key: 'income', label: 'Contributions' },
               { key: 'expense', label: 'Expenses' },
             ] as Array<{ key: TypeFilter; label: string }>
           ).map((f) => (
@@ -131,8 +131,7 @@ export function FinancialHistoryScreen() {
 
         <div className="mt-4">
           <SectionHeader
-            title="Activity feed"
-            caption={`${(entries.data ?? []).length} entries`}
+            title="Activity" 
             action={
               <span className="flex items-center gap-1 text-[11.5px] font-semibold text-slate-400">
                 <Filter size={12} /> filtered
@@ -144,7 +143,7 @@ export function FinancialHistoryScreen() {
               <EmptyState
                 icon={<SlidersHorizontal size={22} />}
                 title="Nothing to show"
-                description="No financial entries match these filters. Try a wider date range."
+description="Nothing here."
                 action={
                   <button
                     type="button"
@@ -178,7 +177,8 @@ export function FinancialHistoryScreen() {
                       {list.map((e) => {
                         const isIncome = e.signed_amount_ghs > 0;
                         return (
-                          <div key={e.id} className="list-row">
+                          <div key={e.id} className="list-row relative">
+                            <span className={`absolute -left-[5px] top-1/2 h-2.5 w-2.5 -translate-y-1/2 rounded-full ring-2 ring-white ${isIncome ? 'bg-[#1E9E63]' : 'bg-[#CF3C3C]'}`} aria-hidden />
                             <span
                               className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${
                                 isIncome ? 'bg-[#E4F6EC] text-[#137447]' : 'bg-[#FDECEC] text-[#A82B2B]'
@@ -188,10 +188,10 @@ export function FinancialHistoryScreen() {
                             </span>
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-[13px] font-bold text-navy-950">
-                                {e.description.split('—')[0].trim()}
+                                {shortActivityTitle(e.description)}
                               </p>
-                              <p className="line-clamp-2 text-[11.5px] leading-snug text-slate-500">
-                                {e.category} · {e.recorded_status}
+                              <p className="truncate text-[11px] text-slate-500">
+                                {formatPaymentLine(e.entry_date, e.created_at)}
                               </p>
                             </div>
                             <span className={`money shrink-0 text-[13.5px] font-extrabold ${isIncome ? 'text-[#137447]' : 'text-[#A82B2B]'}`}>
@@ -209,18 +209,7 @@ export function FinancialHistoryScreen() {
           )}
         </div>
 
-        <div className="mt-4">
-          <InfoNote>
-            This feed is read-only. Every entry comes from the immutable ledger, so the balance can
-            always be traced back to real income and expense records. Reversals appear as separate
-            entries rather than deleting history.
-          </InfoNote>
-        </div>
 
-        <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white p-3 border border-[#E8EEF7] text-[11.5px] text-slate-500">
-          <History size={14} className="text-navy-500" />
-          Entries are ordered newest first, and grouped by the date of the transaction.
-        </div>
       </div>
     </div>
   );

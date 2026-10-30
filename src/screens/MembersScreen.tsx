@@ -16,11 +16,11 @@ import type { PublicMemberPaymentSummary, PublicPaymentStatusLabel } from '../ty
 type Filter = 'all' | 'paid' | 'partial' | 'unpaid' | 'overdue';
 
 const FILTERS: Array<{ key: Filter; label: string }> = [
-  { key: 'all', label: 'All Members' },
-  { key: 'paid', label: 'Fully Paid' },
-  { key: 'partial', label: 'Partially Paid' },
-  { key: 'unpaid', label: 'Not Yet Paid' },
-  { key: 'overdue', label: 'Overdue' },
+  { key: 'all', label: 'All' },
+  { key: 'paid', label: 'Paid' },
+  { key: 'partial', label: 'Partial' },
+  { key: 'unpaid', label: 'Not Paid' },
+  { key: 'overdue', label: 'Outstanding' },
 ];
 
 export function MembersScreen() {
@@ -70,15 +70,15 @@ export function MembersScreen() {
 
   return (
     <div className="app-shell">
-      <header className="sticky top-0 z-30 border-b border-[#E8EEF7] bg-white/95 px-4 pb-2.5 pt-3 backdrop-blur">
+      <header className="sticky top-0 z-30 bg-navy-900 px-4 pb-3 pt-3.5 text-white shadow-pop">
         <div className="flex items-start justify-between gap-2">
           <div>
-            <h1 className="text-[17px] font-extrabold text-navy-950">Members</h1>
-            <p className="text-[12px] text-slate-500">
+            <h1 className="text-[17px] font-extrabold">Members</h1>
+            <p className="text-[12px] text-navy-200">
               {counts.all} approved · {counts.paid} fully paid · {counts.outstanding} with a balance
             </p>
           </div>
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-navy-50 text-navy-700">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-gold-400">
             <Users size={17} />
           </span>
         </div>
@@ -87,8 +87,8 @@ export function MembersScreen() {
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
           <input
             type="search"
-            className="input pl-9"
-            placeholder="Search member by name"
+            className="input border-0 pl-9"
+            placeholder="Search members..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             aria-label="Search members by name"
@@ -105,8 +105,8 @@ export function MembersScreen() {
               data-testid={`filter-${f.key}`}
               className={`shrink-0 rounded-full border px-3.5 py-1.5 text-[12.5px] font-bold transition ${
                 filter === f.key
-                  ? 'border-navy-900 bg-navy-900 text-white'
-                  : 'border-[#D8E2F0] bg-white text-navy-700'
+                  ? 'border-gold-500 bg-gold-500 text-navy-950'
+                  : 'border-white/0 bg-white text-navy-700'
               }`}
             >
               {f.label}
@@ -121,7 +121,7 @@ export function MembersScreen() {
             <EmptyState
               icon={<SlidersHorizontal size={22} />}
               title="No members match this view"
-              description="Try another filter or clear the search box to see everyone again."
+              description="No match."
               action={
                 <button
                   type="button"
@@ -153,41 +153,24 @@ export function MembersScreen() {
                             {m.full_name}
                             {isMe ? <span className="ml-1 text-[11px] font-semibold text-navy-500">(you)</span> : null}
                           </p>
-                          <p className="text-[11.5px] text-slate-500">{m.relevant_period_label}</p>
+                          <p className="text-[11.5px] text-slate-500">
+                            {m.current_period_label} · {m.current_period_outstanding_ghs > 0 ? `${formatGHS(m.current_period_outstanding_ghs)} to pay` : 'Paid'}
+                            {m.overdue_outstanding_ghs > 0 ? ` · ${formatGHS(m.overdue_outstanding_ghs)} outstanding` : ''}
+                          </p>
                         </div>
                         <StatusPill status={m.payment_status} />
                       </div>
 
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <div className="rounded-lg bg-[#F2FBF6] px-2.5 py-1.5">
-                          <p className="text-[10px] font-semibold uppercase tracking-wide text-[#137447]">Paid</p>
-                          <p className="money text-[13.5px] font-extrabold text-[#137447]">
-                            {formatGHS(m.total_verified_paid_ghs)}
-                          </p>
-                        </div>
-                        <div className={`rounded-lg px-2.5 py-1.5 ${m.outstanding_amount_ghs > 0 ? 'bg-[#FDF1F1]' : 'bg-[#F2FBF6]'}`}>
-                          <p className={`text-[10px] font-semibold uppercase tracking-wide ${m.outstanding_amount_ghs > 0 ? 'text-[#A82B2B]' : 'text-[#137447]'}`}>
-                            Outstanding
-                          </p>
-                          <p className={`money text-[13.5px] font-extrabold ${m.outstanding_amount_ghs > 0 ? 'text-[#A82B2B]' : 'text-[#137447]'}`}>
-                            {formatGHS(m.outstanding_amount_ghs)}
-                          </p>
-                        </div>
-                      </div>
+                      <p className="money mt-1 text-[12.5px] font-bold text-slate-600">
+                        {formatGHS(m.total_verified_paid_ghs, false)} <span className="font-medium text-slate-400">/ {formatGHS(m.total_due_ghs, false)}</span>
+                      </p>
+                      <p className="text-[11px] text-slate-500">
+                        {m.periods_fully_paid} paid · {m.periods_partially_paid + m.periods_not_yet_paid} due
+                        {m.outstanding_amount_ghs > 0 ? ` · ${formatGHS(m.outstanding_amount_ghs)} outstanding` : ''}
+                        {m.pending_submissions_count > 0 ? ` · ${m.pending_submissions_count} pending` : ''}
+                      </p>
 
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[#EDF2F9]">
-                        <div
-                          className={`h-full rounded-full ${percent >= 100 ? 'bg-[#1E9E63]' : percent > 0 ? 'bg-gold-500' : 'bg-[#D8E2F0]'}`}
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-
-                      <div className="mt-2 flex items-center justify-between gap-2">
-                        <p className="text-[11px] text-slate-500">
-                          {m.periods_fully_paid} paid · {m.periods_partially_paid} partial ·{' '}
-                          {m.periods_not_yet_paid} unpaid
-                          {m.pending_submissions_count > 0 ? ` · ${m.pending_submissions_count} pending` : ''}
-                        </p>
+                      <div className="mt-1.5 flex items-center justify-end gap-2">
                         <button
                           type="button"
                           onClick={() => navigate('member-detail', { id: m.member_id })}
@@ -204,23 +187,6 @@ export function MembersScreen() {
           </div>
         )}
 
-        <div className="mt-4 rounded-2xl border border-[#E3D2A8] bg-[#FFFBF0] p-3.5">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-bold text-[#8A5A08]">
-            <ShieldCheck size={15} /> Why this page is shared
-          </p>
-          <p className="mt-1 text-[12px] leading-relaxed text-[#7A5A20]">
-            Group transparency helps everyone see the true state of contributions. Only the figures
-            needed for transparency are shown — never receipts, references, phone numbers or private
-            notes. Labels are factual: &ldquo;Outstanding&rdquo; or &ldquo;Not Yet Paid&rdquo;, never a judgement about a person.
-          </p>
-        </div>
-
-        <div className="mt-3">
-          <InfoNote>
-            Statuses update automatically the moment a treasurer verifies a payment. Pending
-            submissions are shown separately and are not counted as paid.
-          </InfoNote>
-        </div>
       </div>
     </div>
   );

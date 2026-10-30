@@ -51,6 +51,43 @@ export function formatDateTimeShort(dateStr: string | null | undefined): string 
   });
 }
 
+/** "10:15 AM" from an ISO timestamp. Returns "" when there is no time part. */
+export function formatTimeShort(dateStr: string | null | undefined): string {
+  if (!dateStr || !dateStr.includes('T')) return '';
+  const parsed = new Date(dateStr);
+  if (Number.isNaN(parsed.getTime())) return '';
+  return parsed.toLocaleTimeString('en-GB', { hour: 'numeric', minute: '2-digit', hour12: true }).toUpperCase();
+}
+
+/** Monday-start week label for a date, e.g. "Week of 3 Nov". */
+export function formatWeekLabel(dateStr: string | null | undefined): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr.length === 10 ? `${dateStr}T00:00:00` : dateStr);
+  if (Number.isNaN(d.getTime())) return '';
+  const day = (d.getDay() + 6) % 7; // Monday = 0
+  d.setDate(d.getDate() - day);
+  return `Week of ${d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })}`;
+}
+
+/** One short line for a payment/activity row: "Week of 3 Nov · 10 Nov 2025 · 10:15 AM". */
+export function formatPaymentLine(dateStr: string | null | undefined, timestamp?: string | null): string {
+  const parts = [formatWeekLabel(dateStr), formatDateShort(dateStr)];
+  const time = formatTimeShort(timestamp ?? dateStr);
+  if (time) parts.push(time);
+  return parts.filter(Boolean).join(' · ');
+}
+
+/** Turns long stored ledger text into a short name/title. */
+export function shortActivityTitle(description: string): string {
+  const d = (description ?? '').trim();
+  const verified = d.match(/^Member contribution verified \((.+)\)$/);
+  if (verified) return verified[1];
+  if (d.startsWith('Expense: ')) return d.slice(9).split(' — ')[0].trim();
+  if (d.startsWith('Reversal of expense: ')) return d.slice(21).split(' — ')[0].trim();
+  if (d.startsWith('Expense correction: ')) return d.slice(20).split(' increased by ')[0].split(' reduced by ')[0].trim();
+  return d.split(' — ')[0].trim();
+}
+
 export function buildWhatsAppReminderMessage(params: {
   memberName: string;
   outstandingAmountGhs: number;
@@ -78,6 +115,14 @@ export function buildWhatsAppUrl(phone: string | null | undefined, message: stri
     digits = `233${digits.slice(1)}`;
   }
   return `https://wa.me/${digits}?text=${encodedText}`;
+}
+
+/** Deterministic display member code, e.g. HRJ-2022-004 (display only, not a credential). */
+export function formatMemberId(id: string | null | undefined): string {
+  if (!id) return 'HRJ-2022-000';
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) % 900;
+  return `HRJ-2022-${String(hash + 1).padStart(3, '0')}`;
 }
 
 export function getInitials(fullName: string): string {

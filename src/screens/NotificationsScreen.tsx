@@ -49,7 +49,7 @@ export function NotificationsScreen() {
             <EmptyState
               icon={<Bell size={22} />}
               title="No notifications"
-              description="Approval updates, payment reviews and reminders will appear here."
+              description="Nothing yet."
             />
           </div>
         ) : (

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldAlert, UserPlus } from 'lucide-react';
+import { ArrowLeft, Eye, EyeOff, KeyRound, Loader2, Lock, Mail, ShieldAlert, User, UserPlus } from 'lucide-react';
 import { Alert, ScreenHeader } from '../components/ui';
+import { Crest } from '../components/Crest';
 import { ServiceError, requestPasswordReset, signIn, signUp } from '../services/databaseService';
 import { DEMO_ACCOUNTS } from '../services/localStore';
 
@@ -19,6 +20,7 @@ export function LoginScreen({
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
   const [showForgot, setShowForgot] = useState(false);
   const [forgotEmail, setForgotEmail] = useState('');
 
@@ -43,9 +45,14 @@ export function LoginScreen({
   };
 
   return (
-    <div className="app-shell min-h-screen">
-      <ScreenHeader title="Login" subtitle="Welcome back to the group" onBack={onBack} />
-      <div className="px-4 pt-4">
+    <div className="app-shell app-fixed flex flex-col bg-white">
+      <ScreenHeader title="Login" subtitle="Have R/C JHS 2022" onBack={onBack} />
+      <div className="min-h-0 flex-1 overflow-y-auto px-5 pt-4">
+        <div className="flex flex-col items-center text-center">
+          <Crest size={52} />
+          <h1 className="mt-3 text-[24px] font-extrabold tracking-tight text-navy-950">Welcome Back!</h1>
+          <p className="mt-0.5 text-[13px] text-slate-500">Sign in to your account</p>
+        </div>
         {error ? (
           <div className="mb-3">
             <Alert tone="error" title="Could not sign in" onClose={() => setError(null)}>
@@ -66,17 +73,20 @@ export function LoginScreen({
             <label className="label" htmlFor="login-email">
               Email address
             </label>
-            <input
-              id="login-email"
-              type="email"
-              inputMode="email"
-              autoComplete="email"
-              className="input"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
+            <div className="relative">
+              <User size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                id="login-email"
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                className="input pl-10"
+                placeholder="Email or Phone Number"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
+            </div>
           </div>
 
           <div>
@@ -84,12 +94,13 @@ export function LoginScreen({
               Password
             </label>
             <div className="relative">
+              <Lock size={17} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
                 id="login-password"
                 type={showPassword ? 'text' : 'password'}
                 autoComplete="current-password"
-                className="input pr-12"
-                placeholder="Enter your password"
+                className="input pl-10 pr-12"
+                placeholder="Password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
@@ -105,9 +116,16 @@ export function LoginScreen({
             </div>
           </div>
 
-          <button type="button" onClick={() => setShowForgot(true)} className="text-[13px] font-semibold text-navy-700 underline">
-            Forgot your password?
-          </button>
+          <div className="flex items-center justify-between gap-3">
+            <label className="flex cursor-pointer items-center gap-2 text-[13px] font-medium text-navy-900">
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="h-[18px] w-[18px] rounded accent-[#0B3570]" />
+              Remember me
+            </label>
+            <button type="button" onClick={() => setShowForgot(true)} className="text-[13px] font-semibold text-navy-700">
+              Forgot password?
+            </button>
+          </div>
+          {rememberMe ? <p className="sr-only">Session will be remembered on this device.</p> : null}
 
           <button type="submit" className="btn-primary" disabled={busy} data-testid="login-submit">
             {busy ? <Loader2 size={17} className="animate-spin" /> : <KeyRound size={17} />}
@@ -115,17 +133,32 @@ export function LoginScreen({
           </button>
         </form>
 
-        <button type="button" onClick={onRegister} className="btn-ghost mt-2.5">
-          <UserPlus size={16} />
-          I don&apos;t have an account yet
+        <div className="my-4 flex items-center gap-3" aria-hidden>
+          <span className="h-px flex-1 bg-[#E3ECF7]" />
+          <span className="text-[12px] font-medium text-slate-400">or</span>
+          <span className="h-px flex-1 bg-[#E3ECF7]" />
+        </div>
+        <button
+          type="button"
+          onClick={() => setInfo('Google sign-in opens when the Google provider is enabled in Supabase Auth (see docs/SUPABASE_SETUP.md). For now, please sign in with your email and password, or use a demo account below.')}
+          className="btn min-h-[50px] border border-[#D8E2F0] bg-white text-[15px] font-semibold text-navy-950"
+        >
+          <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white text-[15px] font-extrabold" aria-hidden>
+            <span className="text-[#4285F4]">G</span>
+          </span>
+          Continue with Google
         </button>
 
-        <div className="mt-6 rounded-2xl border border-[#E8EEF7] bg-white p-3.5">
-          <p className="text-[12.5px] font-bold uppercase tracking-wide text-navy-700">Demo accounts</p>
-          <p className="mt-1 text-[12px] leading-relaxed text-slate-500">
-            This build runs on an offline demo database so you can explore every role. Tap an account to
-            fill the form.
-          </p>
+        <p className="mt-5 text-center text-[13px] text-slate-500">
+          Don&apos;t have an account?{' '}
+          <button type="button" onClick={onRegister} className="font-bold text-navy-800">
+            Register
+          </button>
+        </p>
+
+        <details className="mt-4 rounded-2xl border border-[#E8EEF7] bg-white p-3.5">
+          <summary className="cursor-pointer text-[12.5px] font-bold uppercase tracking-wide text-navy-700">Demo accounts</summary>
+          <p className="mt-1 text-[12px] text-slate-500">Tap to fill.</p>
           <div className="mt-2.5 space-y-1.5">
             {DEMO_ACCOUNTS.map((acc) => (
               <button
@@ -142,7 +175,7 @@ export function LoginScreen({
               </button>
             ))}
           </div>
-        </div>
+        </details>
       </div>
 
       {showForgot ? (
@@ -221,7 +254,11 @@ export function RegisterScreen({
   return (
     <div className="app-shell min-h-screen">
       <ScreenHeader title="Join the Group" subtitle="Create your member account" onBack={onBack} />
-      <div className="px-4 pt-4">
+      <div className="px-4 pt-5">
+        <div className="mb-4 flex flex-col items-center text-center">
+          <Crest size={60} />
+          <p className="mt-2 text-[13px] font-semibold text-slate-500">Have R/C JHS 2022 Old Students</p>
+        </div>
         {error ? (
           <div className="mb-3">
             <Alert tone="error" title="Please check the form" onClose={() => setError(null)}>

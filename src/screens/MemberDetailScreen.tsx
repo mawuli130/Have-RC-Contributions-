@@ -20,7 +20,7 @@ export function MemberDetailScreen({ memberId }: { memberId: string }) {
           <EmptyState
             icon={<ShieldCheck size={22} />}
             title="Member not available"
-            description="This member either has not been approved yet or the record could not be found."
+            description="Not found."
           />
         </div>
       </div>
@@ -57,7 +57,7 @@ export function MemberDetailScreen({ memberId }: { memberId: string }) {
         </div>
 
         <div className="mt-4">
-          <SectionHeader title="Period breakdown" caption="Shared for group transparency" />
+          <SectionHeader title="Periods" />
           <div className="card space-y-2">
             <Row icon={<CheckCircle2 size={15} />} label="Periods fully paid" value={`${member.periods_fully_paid}`} />
             <Row icon={<Clock size={15} />} label="Periods partially paid" value={`${member.periods_partially_paid}`} />
