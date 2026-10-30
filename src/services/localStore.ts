@@ -139,14 +139,32 @@ export function loadState(): LocalDbState {
   return cache;
 }
 
+const writeListeners = new Set<() => void>();
+
+/** Notified after every persisted state change (used by live sync). */
+export function onStateWritten(listener: () => void): () => void {
+  writeListeners.add(listener);
+  return () => {
+    writeListeners.delete(listener);
+  };
+}
+
 export function persist(): void {
   if (!cache) return;
-  if (!storageAvailable()) return;
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
-  } catch {
-    // storage full / disabled: engine keeps working in memory
+  if (storageAvailable()) {
+    try {
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(cache));
+    } catch {
+      // storage full / disabled: engine keeps working in memory
+    }
   }
+  writeListeners.forEach((listener) => {
+    try {
+      listener();
+    } catch {
+      // a broken listener must never break a write
+    }
+  });
 }
 
 export function writeState(mutator: (state: LocalDbState) => void): LocalDbState {

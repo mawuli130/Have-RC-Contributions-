@@ -75,7 +75,7 @@ export function MembersScreen() {
           <div>
             <h1 className="text-[17px] font-extrabold">Members</h1>
             <p className="text-[12px] text-navy-200">
-              {counts.all} approved · {counts.paid} fully paid · {counts.outstanding} with a balance
+              {counts.all} registered members · {counts.paid} fully paid · {counts.outstanding} with a balance
             </p>
           </div>
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/10 text-gold-400">

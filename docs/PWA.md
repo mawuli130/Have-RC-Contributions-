@@ -54,3 +54,37 @@ When a new version is deployed, the new service worker activates itself and
 the page reloads once — members always end up on the latest build without
 doing anything. If an icon or shell change seems stuck, bump `VERSION` in
 `public/sw.js`.
+
+## Notifications (payment submitted, member registered, week missed)
+
+Three levels, from simplest to strongest:
+
+1. **In-app** — the bell list (Notifications screen). Admins are alerted the
+   moment a payment is submitted or a member registers; members are alerted
+   when approved, verified, or a week becomes outstanding.
+2. **Browser/phone pop-ups** — with permission granted (**Notifications →
+   Phone notifications → Turn on**), new alerts also appear at the top of
+   the phone / in the pull-down shade while the app is in the background.
+   In live mode, devices sync every ~25 seconds and on focus, so a payment
+   submitted on one phone alerts the treasurer on another.
+3. **Closed-app push (Web Push)** — for alerts even when the app is fully
+   closed. One-time setup:
+   1. `npx web-push generate-vapid-keys`
+   2. App env: `VITE_VAPID_PUBLIC_KEY=<public key>` → redeploy the app.
+   3. `supabase secrets set VAPID_PUBLIC_KEY=<public> VAPID_PRIVATE_KEY=<private> VAPID_SUBJECT=mailto:you@example.com`
+   4. `supabase functions deploy notify-payment`
+   5. Members/admins tap **Turn on notifications** once. Subscriptions are
+      stored in `push_subscriptions` (migration 005); the function only
+      ever pushes to admins/treasurers and prunes dead devices.
+
+The private VAPID key is a secret: Edge Function only, never in the app.
+
+## Live sync (migration 005)
+
+In live mode every approved phone shares one group state document
+(`public.group_state`): contribution settings, weeks, obligations,
+payments, expenses and notifications sync between devices automatically
+(writes push within a second; pulls on open/focus/reconnect and every
+25s). Accounts and roles always come from `profiles`/`user_roles`.
+Members who join after the schedule started are backfilled automatically —
+they owe every week from the schedule start, like everyone else.

@@ -56,6 +56,9 @@ describe('PWA installability', () => {
     expect(sw).toContain("request.mode === 'navigate'");
     expect(sw).toContain('url.origin !== self.location.origin');
     expect(sw).toContain('clients.claim()');
+    expect(sw).toContain("addEventListener('push'");
+    expect(sw).toContain("addEventListener('notificationclick'");
+    expect(sw).toContain("'v2'");
     expect(sw).toContain('/manifest.webmanifest');
     expect(sw).toContain('/icons/icon-512.png');
   });

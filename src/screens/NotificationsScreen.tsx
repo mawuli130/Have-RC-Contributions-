@@ -1,10 +1,17 @@
-import React from 'react';
-import { Bell, CheckCheck, Megaphone, Receipt, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { Bell, BellRing, CheckCheck, Megaphone, Receipt, Send, ShieldCheck } from 'lucide-react';
 import { EmptyState, ScreenHeader } from '../components/ui';
 import { useApp, useServiceData } from '../context/AppContext';
 import { getNotifications, markAllNotificationsRead, markNotificationRead } from '../services/databaseService';
 import { formatDateTimeShort } from '../utils/formatters';
 import type { AppNotification } from '../types/database';
+import {
+  notificationPermission,
+  requestNotificationPermission,
+  showTestBrowserNotification,
+  type NotificationSupport,
+} from '../pwa/browserNotifications';
+import { pushConfigured, subscribeToPush } from '../pwa/pushNotifications';
 
 const ICONS: Record<string, React.ReactNode> = {
   membership_approved: <ShieldCheck size={16} />,
@@ -18,9 +25,27 @@ const ICONS: Record<string, React.ReactNode> = {
 };
 
 export function NotificationsScreen() {
-  const { goBack, refresh } = useApp();
+  const { goBack, refresh, session, toast } = useApp();
   const notifications = useServiceData<AppNotification[]>(() => getNotifications());
   const unread = (notifications.data ?? []).filter((n) => !n.is_read).length;
+  const [perm, setPerm] = useState<NotificationSupport>(() => notificationPermission());
+  const [enabling, setEnabling] = useState(false);
+
+  const enableNotifications = async () => {
+    setEnabling(true);
+    try {
+      const result = await requestNotificationPermission();
+      setPerm(result);
+      if (result === 'granted') {
+        if (session) await subscribeToPush(session.profile.id);
+        toast.success('Phone notifications are on.');
+      } else if (result === 'denied') {
+        toast.error('Notifications are blocked. Allow them in your browser site settings.');
+      }
+    } finally {
+      setEnabling(false);
+    }
+  };
 
   return (
     <div className="app-shell">
@@ -44,6 +69,47 @@ export function NotificationsScreen() {
         }
       />
       <div className="px-4 pt-4">
+        <div className="card mb-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-navy-900 text-gold-400">
+              <BellRing size={18} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-bold text-navy-950">Phone notifications</p>
+              <p className="text-[12px] leading-relaxed text-slate-500">
+                {perm === 'granted'
+                  ? 'On. New payments and updates will pop up at the top of your phone.'
+                  : perm === 'denied'
+                    ? 'Blocked in your browser settings. Allow notifications for this site to turn them on.'
+                    : perm === 'unsupported'
+                      ? 'Not supported in this browser. Install the app for the best experience.'
+                      : 'Get an alert at the top of your phone when a payment is submitted or a week is due.'}
+              </p>
+              {pushConfigured ? (
+                <p className="mt-0.5 text-[11px] text-slate-400">Includes alerts while the app is closed.</p>
+              ) : null}
+            </div>
+          </div>
+          {perm !== 'granted' && perm !== 'unsupported' ? (
+            <button type="button" className="btn-gold btn-sm mt-3 w-full" onClick={enableNotifications} disabled={enabling}>
+              <BellRing size={14} /> Turn on notifications
+            </button>
+          ) : null}
+          {perm === 'granted' ? (
+            <button
+              type="button"
+              className="btn-outline btn-sm mt-3 w-full"
+              onClick={async () => {
+                const ok = await showTestBrowserNotification();
+                if (ok) toast.success('Test sent — look at the top of your phone.');
+                else toast.error('Could not send a test notification.');
+              }}
+            >
+              <Send size={14} /> Send a test notification
+            </button>
+          ) : null}
+        </div>
+
         {(notifications.data ?? []).length === 0 ? (
           <div className="card-flat bg-white">
             <EmptyState

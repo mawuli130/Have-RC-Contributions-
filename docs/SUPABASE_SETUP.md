@@ -18,6 +18,7 @@ In the dashboard open **SQL Editor → New query** and run these files **in orde
 1. [`../supabase/migrations/001_initial_schema.sql`](../supabase/migrations/001_initial_schema.sql) — tables, RLS, financial RPCs, first-admin bootstrap.
 2. [`../supabase/migrations/002_weekly_schedule.sql`](../supabase/migrations/002_weekly_schedule.sql) — admin-set weekly schedule columns.
 3. [`../supabase/migrations/003_live_accounts.sql`](../supabase/migrations/003_live_accounts.sql) — **required for real accounts**: automatically creates the pending profile + member role whenever someone registers, and adds the guarded `admin_set_membership` / `admin_set_role` functions the app uses for approvals.
+4. [`../supabase/migrations/005_live_sync_and_push.sql`](../supabase/migrations/005_live_sync_and_push.sql) — shared group state so all phones see the same weeks/payments/outstanding, plus Web Push subscriptions for closed-app admin alerts (see `PWA.md`).
 
 The migration creates:
 

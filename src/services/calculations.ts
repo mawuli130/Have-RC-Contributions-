@@ -211,6 +211,7 @@ export function computeGroupSummary(state: LocalDbState): GroupFinancialSummary 
     other_recorded_outflows_ghs: otherOutflows,
     current_recorded_balance_ghs: balance,
     approved_members_count: approved.length,
+    registered_members_count: state.users.length,
     pending_members_count: state.users.filter((u) => u.membership_status === 'pending').length,
     members_yet_to_pay_count: withSchedule.filter((c) => c.outstanding > 0).length,
     members_fully_paid_count: withSchedule.filter((c) => c.outstanding <= 0).length,
