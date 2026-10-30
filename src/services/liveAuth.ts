@@ -18,6 +18,29 @@ import type { AppRole, AuthenticatedUser, MembershipStatus, Profile } from '../t
 /* engine in databaseService.ts instead — the two never mix.           */
 /* ------------------------------------------------------------------ */
 
+/* Last-good copies for offline viewing. When the network fails, screens
+ * keep showing these instead of an error; AppContext reloads fresh data
+ * the moment the connection returns. */
+const SESSION_CACHE_KEY = 'have_rc_live_session_v1';
+const MEMBERS_CACHE_KEY = 'have_rc_live_members_v1';
+
+function cacheSessionUser(user: AuthenticatedUser): void {
+  try {
+    window.localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(user));
+  } catch {
+    // storage unavailable: offline fallback simply will not persist
+  }
+}
+
+function readCachedSessionUser(): AuthenticatedUser | null {
+  try {
+    const raw = window.localStorage.getItem(SESSION_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AuthenticatedUser) : null;
+  } catch {
+    return null;
+  }
+}
+
 function client() {
   if (!isLiveSupabaseConfigured || !supabase) {
     throw new ServiceError(
@@ -85,11 +108,17 @@ async function fetchAuthenticatedUser(
   fallbackName?: string | null
 ): Promise<AuthenticatedUser> {
   const sb = client();
-  const { data: profileRow } = await sb
+  const { data: profileRow, error: profileError } = await sb
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .maybeSingle();
+  if (profileError || !profileRow) {
+    // Offline (or profile not readable yet): reuse the last-good copy so
+    // approved members and admins keep their real status without signal.
+    const cached = readCachedSessionUser();
+    if (cached && cached.profile.id === userId) return cached;
+  }
   const { data: roleRow } = await sb
     .from('user_roles')
     .select('role')
@@ -160,6 +189,7 @@ export async function liveSignUp(input: SignUpInput): Promise<LiveSignUpResult> 
   }
 
   const authUser = await fetchAuthenticatedUser(data.user.id, email, fullName);
+  cacheSessionUser(authUser);
   syncLocalMirrorUser(authUser);
   return { fullName: authUser.profile.full_name, needsEmailConfirmation: false };
 }
@@ -182,6 +212,7 @@ export async function liveSignIn(email: string, password: string): Promise<Authe
     throw new ServiceError('This membership request was declined. Please contact an administrator for help.');
   }
 
+  cacheSessionUser(authUser);
   syncLocalMirrorUser(authUser);
   return authUser;
 }
@@ -194,6 +225,7 @@ export async function liveGetSessionUser(): Promise<AuthenticatedUser | null> {
   const u = data.session.user;
   const metaName = (u.user_metadata?.full_name as string | undefined) ?? null;
   const authUser = await fetchAuthenticatedUser(u.id, u.email ?? '', metaName);
+  cacheSessionUser(authUser);
   syncLocalMirrorUser(authUser);
   return authUser;
 }
@@ -204,6 +236,12 @@ export async function liveSignOut(): Promise<void> {
   } catch {
     // Signing out locally matters more than a network failure here.
   } finally {
+    try {
+      window.localStorage.removeItem(SESSION_CACHE_KEY);
+      window.localStorage.removeItem(MEMBERS_CACHE_KEY);
+    } catch {
+      // ignore storage failures on sign-out
+    }
     clearLocalMirrorSession();
   }
 }
@@ -227,14 +265,22 @@ export async function liveListMembers(): Promise<AdminMemberRow[]> {
     .from('profiles')
     .select('*')
     .order('created_at', { ascending: false });
-  if (error) throw new ServiceError(error.message);
-  if (!profiles) return [];
+  if (error || !profiles) {
+    // Offline: show the last list the admin actually saw.
+    try {
+      const raw = window.localStorage.getItem(MEMBERS_CACHE_KEY);
+      if (raw) return JSON.parse(raw) as AdminMemberRow[];
+    } catch {
+      // fall through to the error below
+    }
+    throw new ServiceError(error?.message ?? 'Could not load members.');
+  }
 
   const { data: roles } = await sb.from('user_roles').select('user_id, role');
   const roleByUser = new Map<string, AppRole>();
   (roles ?? []).forEach((r: { user_id: string; role: AppRole }) => roleByUser.set(r.user_id, r.role));
 
-  return (profiles as ProfileRow[]).map((row) => ({
+  const rows = (profiles as ProfileRow[]).map((row) => ({
     user_id: row.id,
     full_name: row.full_name,
     email: row.email,
@@ -252,6 +298,13 @@ export async function liveListMembers(): Promise<AdminMemberRow[]> {
     relevant_period_label: '',
     has_schedule: false,
   }));
+
+  try {
+    window.localStorage.setItem(MEMBERS_CACHE_KEY, JSON.stringify(rows));
+  } catch {
+    // cache is best-effort only
+  }
+  return rows;
 }
 
 export async function liveApproveMember(userId: string): Promise<void> {

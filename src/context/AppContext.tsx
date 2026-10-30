@@ -98,6 +98,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     setRefreshKey((k) => k + 1);
   }, []);
 
+  // When the connection comes back, reload the session + all screen data
+  // so members immediately see fresh figures instead of last-saved ones.
+  useEffect(() => {
+    const onOnline = () => {
+      refreshSession();
+      refresh();
+      toast.success('Back online — updated.');
+    };
+    window.addEventListener('online', onOnline);
+    return () => window.removeEventListener('online', onOnline);
+  }, [refresh, refreshSession, toast]);
+
   // Live mode: restore the Supabase session on start and keep it in sync.
   useEffect(() => {
     if (!isLiveSupabaseConfigured || !supabase) return;

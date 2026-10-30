@@ -34,6 +34,7 @@ import { getPendingPayments, getSessionUser } from './services/databaseService';
 import { isLiveSupabaseConfigured } from './services/supabaseClient';
 import { liveGetSessionUser } from './services/liveAuth';
 import { Crest } from './components/Crest';
+import { OfflineBanner } from './components/OfflineBanner';
 
 /** Screens that are reachable only by authorized administrators/treasurers. */
 const ADMIN_ROUTES = new Set([
@@ -268,6 +269,7 @@ function AppChrome() {
   const { toast } = useApp();
   return (
     <>
+      <OfflineBanner />
       <ToastStack toasts={toast.toasts} onDismiss={toast.dismiss} />
       <ScreenRouter />
     </>

@@ -91,6 +91,7 @@ docs/                         Setup, deployment, member and admin guides
 | [`docs/ADMIN_GUIDE.md`](docs/ADMIN_GUIDE.md) | Administrator and treasurer guide |
 | [`docs/TEST_RESULTS.md`](docs/TEST_RESULTS.md) | Test results and known limitations |
 | [`docs/SECURITY.md`](docs/SECURITY.md) | Security model, RLS summary, privacy rules |
+| [`docs/PWA.md`](docs/PWA.md) | Install the app (crest icon) and offline behaviour |
 
 ---
 
