@@ -1,13 +1,25 @@
-/* Have R/C JHS 2022 — service worker
- * - App shell is cached so the app opens instantly and offline.
- * - Page navigations are network-first: online always gets fresh content,
- *   offline falls back to the cached app.
- * - Static assets use stale-while-revalidate.
- * - API/auth traffic (Supabase) and non-GET requests are never cached.
+/* Have R/C JHS 2022 — service worker (v3)
+ *
+ * HARD RULE: this worker must never break a page load. Some browsers
+ * (older iOS Safari in particular) run service workers WITHOUT the
+ * Cache API — `caches` is simply not defined there. v2 called it
+ * unguarded, which threw inside respondWith and bricked the site.
+ * v3 therefore:
+ *   - feature-detects the Cache API and skips caching entirely where
+ *     it is missing (the site then behaves like a normal website),
+ *   - wraps every cache call so failures degrade to plain network,
+ *   - always resolves navigations to a real page (never an error).
+ *
+ * Where caching exists:
+ *   - app shell is precached; navigations are network-first with a
+ *     cached/offline fallback; static assets stale-while-revalidate;
+ *   - API/auth traffic (Supabase) and non-GET requests are untouched.
  * Bump VERSION to ship a new shell; old caches are deleted on activate. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL_CACHE = `have-rc-shell-${VERSION}`;
 const RUNTIME_CACHE = `have-rc-runtime-${VERSION}`;
+
+const HAS_CACHE = typeof caches !== 'undefined' && typeof caches.open === 'function';
 
 const PRECACHE_URLS = [
   '/',
@@ -20,27 +32,50 @@ const PRECACHE_URLS = [
   '/icons/apple-touch-icon.png',
 ];
 
+const OFFLINE_PAGE = `<!doctype html>
+<html lang="en"><head><meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Have R/C JHS 2022 — Offline</title>
+<style>body{margin:0;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;background:#071F42;color:#fff;display:flex;min-height:100vh;align-items:center;justify-content:center;text-align:center;padding:24px}div{max-width:320px}h1{font-size:20px;margin:0 0 8px}p{color:#B9CBE8;font-size:14px;line-height:1.5;margin:0 0 16px}button{background:#FFC400;color:#071F42;border:0;border-radius:999px;padding:12px 22px;font-size:15px;font-weight:700}</style>
+</head><body><div>
+<h1>You're offline</h1>
+<p>The app could not load. Check your connection and try again — your saved data is still on this phone.</p>
+<button onclick="location.reload()">Try again</button>
+</div></body></html>`;
+
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(SHELL_CACHE)
-      .then((cache) => cache.addAll(PRECACHE_URLS))
-      .then(() => self.skipWaiting())
+    (async () => {
+      if (HAS_CACHE) {
+        try {
+          const cache = await caches.open(SHELL_CACHE);
+          await cache.addAll(PRECACHE_URLS);
+        } catch {
+          // Precaching is best-effort; a failed shell must not block install.
+        }
+      }
+      await self.skipWaiting();
+    })()
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(
-          keys
-            .filter((key) => key !== SHELL_CACHE && key !== RUNTIME_CACHE)
-            .map((key) => caches.delete(key))
-        )
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      if (HAS_CACHE) {
+        try {
+          const keys = await caches.keys();
+          await Promise.all(
+            keys
+              .filter((key) => key !== SHELL_CACHE && key !== RUNTIME_CACHE)
+              .map((key) => caches.delete(key))
+          );
+        } catch {
+          // Old caches are harmless; never fail activation over them.
+        }
+      }
+      await self.clients.claim();
+    })()
   );
 });
 
@@ -54,21 +89,43 @@ self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
 
-  const url = new URL(request.url);
+  let url;
+  try {
+    url = new URL(request.url);
+  } catch {
+    return;
+  }
   // Never intercept cross-origin traffic (Supabase auth/API, CDNs).
   if (url.origin !== self.location.origin) return;
+
+  // No Cache API on this browser: step aside completely and let the
+  // request behave like a normal website request. THIS is the line
+  // that keeps older iPhones working.
+  if (!HAS_CACHE) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
       (async () => {
         try {
           const fresh = await fetch(request);
-          const cache = await caches.open(SHELL_CACHE);
-          cache.put('/index.html', fresh.clone());
+          try {
+            const cache = await caches.open(SHELL_CACHE);
+            await cache.put('/index.html', fresh.clone());
+          } catch {
+            // Caching the fresh page is optional.
+          }
           return fresh;
         } catch {
-          const cached = await caches.match('/index.html');
-          return cached || Response.error();
+          try {
+            const cached = await caches.match('/index.html');
+            if (cached) return cached;
+          } catch {
+            // fall through to the offline page
+          }
+          return new Response(OFFLINE_PAGE, {
+            status: 200,
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
         }
       })()
     );
@@ -78,17 +135,41 @@ self.addEventListener('fetch', (event) => {
   // Same-origin static files: serve cache fast, refresh in the background.
   event.respondWith(
     (async () => {
-      const cached = await caches.match(request);
-      const network = fetch(request)
-        .then(async (response) => {
-          if (response.ok) {
+      let cached;
+      try {
+        cached = await caches.match(request);
+      } catch {
+        cached = undefined;
+      }
+      if (cached) {
+        fetch(request)
+          .then(async (response) => {
+            if (response && response.ok) {
+              try {
+                const cache = await caches.open(RUNTIME_CACHE);
+                await cache.put(request, response.clone());
+              } catch {
+                // background refresh is best-effort
+              }
+            }
+          })
+          .catch(() => undefined);
+        return cached;
+      }
+      try {
+        const response = await fetch(request);
+        if (response && response.ok) {
+          try {
             const cache = await caches.open(RUNTIME_CACHE);
-            cache.put(request, response.clone());
+            await cache.put(request, response.clone());
+          } catch {
+            // caching is optional
           }
-          return response;
-        })
-        .catch(() => cached);
-      return cached || network;
+        }
+        return response;
+      } catch {
+        return new Response('', { status: 504, statusText: 'Offline' });
+      }
     })()
   );
 });

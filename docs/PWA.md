@@ -88,3 +88,16 @@ payments, expenses and notifications sync between devices automatically
 25s). Accounts and roles always come from `profiles`/`user_roles`.
 Members who join after the schedule started are backfilled automatically —
 they owe every week from the schedule start, like everyone else.
+
+## If a phone ever shows "FetchEvent.respondWith … Can't find variable: caches"
+
+That was the v2 worker running on an iOS version whose service workers
+have no Cache API. v3 fixes it at the root: the worker feature-detects
+the Cache API, steps aside completely where it is missing, and can
+never fail a page load. Phones normally self-heal on the next visit
+(sw.js is always fetched fresh). If one phone stays stuck:
+
+1. Delete the home-screen icon (long-press → Remove App).
+2. iPhone **Settings → Safari → Advanced → Website Data** → find this
+   site → **Delete** (this evicts the bad worker).
+3. Open the site link fresh in Safari, then re-add to the home screen.
